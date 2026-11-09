@@ -12,6 +12,8 @@
 | [docs/00-overview.md](docs/00-overview.md) | 목표, 범위, 단계별 일정 요약 |
 | [docs/design/account-chart.md](docs/design/account-chart.md) | 계정과목 체계 |
 | [docs/design/erd.md](docs/design/erd.md) | 데이터 모델(ERD)과 무결성 규칙 |
+| [docs/design/api.md](docs/design/api.md) | REST API 명세 초안 |
+| [docs/design/screens.md](docs/design/screens.md) | 화면 목록과 와이어프레임 |
 | [docs/scenario/company.md](docs/scenario/company.md) | 테스트용 시나리오 회사와 기초잔액 |
 | [docs/scenario/answers-2026.md](docs/scenario/answers-2026.md) | 시나리오 정답 재무제표 (골든 테스트 기준) |
 | [data/](data/) | 계정 시드, 시나리오 거래 원본(TOML) |

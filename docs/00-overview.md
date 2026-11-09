@@ -34,11 +34,11 @@
 - [x] 계정과목 체계 초안 — [design/account-chart.md](design/account-chart.md)
 - [x] ERD 초안 — [design/erd.md](design/erd.md)
 - [x] 시나리오 회사 프로필 + 기초잔액 — [scenario/company.md](scenario/company.md)
-- [x] ADR 0001~0007
+- [x] ADR 0001~0008
 - [x] 계정 시드 데이터 — [data/seed/accounts.csv](../data/seed/accounts.csv)
 - [x] 시나리오 회사 1년치 거래 38건 + 결산정리 9건 — [data/scenario/mz-electronics-2026.toml](../data/scenario/mz-electronics-2026.toml)
 - [x] 정답 생성·검증 스크립트 — [tools/scenario/compute_answers.py](../tools/scenario/compute_answers.py) → [scenario/answers-2026.md](scenario/answers-2026.md)
 - [ ] 정답을 손으로 한 번 검산 (전산회계 공부 겸)
 - [ ] 계정코드·매입매출 유형 번호를 실제 전산회계 프로그램(KcLep)과 대조
-- [ ] API 명세 초안 (전표, 장부, 재무제표)
-- [ ] 화면 목록과 와이어프레임
+- [x] API 명세 초안 — [design/api.md](design/api.md)
+- [x] 화면 목록과 와이어프레임 — [design/screens.md](design/screens.md)
