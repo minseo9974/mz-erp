@@ -32,4 +32,17 @@ class ArchitectureTest {
     static final ArchRule identityDoesNotKnowMasterData =
             noClasses().that().resideInAPackage("com.mzerp.identity..")
                     .should().dependOnClassesThat().resideInAPackage("com.mzerp.master..");
+
+    /** 기준정보는 전표를 모른다: 전표가 기준정보를 쓰는 한 방향만 허용 (ADR-0001 표) */
+    @ArchTest
+    static final ArchRule masterDataDoesNotKnowJournal =
+            noClasses().that().resideInAnyPackage("com.mzerp.master..", "com.mzerp.identity..", "com.mzerp.common..")
+                    .should().dependOnClassesThat().resideInAPackage("com.mzerp.journal..");
+
+    /** 전표 라인은 전표(JournalEntry)를 통해서만 만든다 — 차대 검증을 우회하지 못하게 */
+    @ArchTest
+    static final ArchRule linesAreCreatedOnlyThroughEntry =
+            noClasses().that().doNotHaveFullyQualifiedName("com.mzerp.journal.JournalEntry")
+                    .should().callConstructor(com.mzerp.journal.JournalLine.class,
+                            com.mzerp.journal.JournalEntry.class, int.class, com.mzerp.journal.JournalEntry.LineDraft.class);
 }

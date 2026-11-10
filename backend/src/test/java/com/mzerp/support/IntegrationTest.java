@@ -136,6 +136,23 @@ public abstract class IntegrationTest {
         return Long.valueOf(body.replaceAll(".*\"companyId\":(\\d+).*", "$1"));
     }
 
+    /** 회계연도를 만든다 (예: 2026년 제6기 → 1~12월 기간). */
+    protected void createFiscalYear(MockHttpSession session, Long companyId, int year, int termNo) throws Exception {
+        mvc.perform(post("/api/v1/companies/" + companyId + "/fiscal-years").session(session).with(xsrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json("year", year, "termNo", termNo)))
+                .andExpect(status().isCreated());
+    }
+
+    /** 거래처를 등록한다. */
+    protected void createPartner(MockHttpSession session, Long companyId, String code, String name, String type)
+            throws Exception {
+        mvc.perform(post("/api/v1/companies/" + companyId + "/partners").session(session).with(xsrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json("code", code, "name", name, "partnerType", type)))
+                .andExpect(status().isCreated());
+    }
+
     /** 간단한 JSON 객체 문자열. 값은 문자열·숫자·불리언만 (테스트 가독성용). */
     protected static String json(Object... keyValues) {
         StringBuilder sb = new StringBuilder("{");
