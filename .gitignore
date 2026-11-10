@@ -28,3 +28,6 @@ Thumbs.db
 # Logs
 *.log
 logs/
+
+# 로컬 개발 데이터 (임베디드 PostgreSQL)
+.local/

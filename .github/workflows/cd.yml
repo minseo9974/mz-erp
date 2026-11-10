@@ -22,7 +22,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  IMAGE: ghcr.io/${{ github.repository_owner }}/mz-erp-backend
+  REGISTRY: ghcr.io/${{ github.repository_owner }}
 
 jobs:
   image:
@@ -41,13 +41,17 @@ jobs:
         run: echo "tag=$(git rev-parse --short=12 HEAD)" >> "$GITHUB_OUTPUT"
       - name: GHCR 로그인
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
-      - name: 빌드·푸시
+      - name: 빌드·푸시 (백엔드, 웹)
         run: |
-          docker build -f backend/Dockerfile \
-            --label org.opencontainers.image.source=https://github.com/${{ github.repository }} \
-            -t "$IMAGE:${{ steps.meta.outputs.tag }}" -t "$IMAGE:latest" .
-          docker push "$IMAGE:${{ steps.meta.outputs.tag }}"
-          docker push "$IMAGE:latest"
+          TAG="${{ steps.meta.outputs.tag }}"
+          for app in backend frontend; do
+            name=$([ "$app" = backend ] && echo mz-erp-backend || echo mz-erp-web)
+            docker build -f "$app/Dockerfile" \
+              --label org.opencontainers.image.source=https://github.com/${{ github.repository }} \
+              -t "$REGISTRY/$name:$TAG" -t "$REGISTRY/$name:latest" .
+            docker push "$REGISTRY/$name:$TAG"
+            docker push "$REGISTRY/$name:latest"
+          done
 
   deploy:
     name: 운영 서버 배포
@@ -98,7 +102,7 @@ jobs:
           else
             echo "IMAGE_TAG=$TAG" >> .env
           fi
-          docker compose pull backend
+          docker compose pull backend caddy
           docker compose up -d --remove-orphans
           docker image prune -f
           EOF

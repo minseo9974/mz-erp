@@ -7,10 +7,14 @@
 		reverse_proxy backend:8080
 	}
 
-	# 프론트엔드가 생기면 정적 파일 서빙으로 교체 (1단계 남은 작업)
+	# 화면(SPA): 웹 이미지에 들어 있는 /srv 파일을 서빙하고, 없는 경로는 index.html로 (React Router가 처리)
 	handle {
-		header Content-Type "text/plain; charset=utf-8"
-		respond "MZ-ERP — API: /swagger-ui.html" 200
+		root * /srv
+		@assets path /assets/*
+		header @assets Cache-Control "public, max-age=31536000, immutable"
+		header /index.html Cache-Control "no-cache"
+		try_files {path} /index.html
+		file_server
 	}
 
 	header {

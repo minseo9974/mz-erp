@@ -11,9 +11,16 @@
 
 - 세션 로그인 + CSRF, 회사별 역할(WRITER / APPROVER / ADMIN)
 - 회사 생성 시 표준 계정과목표(94개) 자동 복사, 계정·거래처 검색·등록·수정, 회계연도(12개월 기간) 생성
-- 통합 테스트 31개 (실제 PostgreSQL 16), 모듈 의존 방향 검사(ArchUnit), GitHub Actions CI
+- 화면: 로그인, 회사 선택·생성, 계정과목(그리드·검색·관리자 수정), 거래처(등록·수정), 회계연도
+- 테스트: 백엔드 통합 테스트 31개 (실제 PostgreSQL 16), 프론트 단위 테스트 25개, 모듈 의존 방향 검사(ArchUnit)
+- CI/CD: PR마다 백엔드·프론트·Docker 이미지·시나리오 정답 검사, main 병합 시 arm64 이미지를 GHCR에 배포
 
-실행 방법은 [docs/dev-setup.md](docs/dev-setup.md).
+```bash
+cd backend && ./gradlew bootTestRun     # DB 설치 없이 백엔드 실행
+cd frontend && npm install && npm run dev   # http://localhost:5173 (admin / admin1234)
+```
+
+자세한 실행 방법은 [docs/dev-setup.md](docs/dev-setup.md).
 
 ## 문서
 
@@ -33,6 +40,7 @@
 | [docs/deploy.md](docs/deploy.md) | 배포: Oracle Cloud 무료 VM + GitHub Actions CD |
 | [infra/server/](infra/server/) | 운영 서버 구성 (Docker Compose, Caddy, 준비 스크립트) |
 | [backend/](backend/) | Spring Boot 백엔드 |
+| [frontend/](frontend/) | React 프론트엔드 |
 | [docs/accounting-notes/](docs/accounting-notes/) | 기능별 회계 규칙 노트 |
 
 ## 기술 스택
@@ -41,6 +49,6 @@
 | --- | --- | --- |
 | 백엔드 | Java 21 · Spring Boot 4.1 · Spring Security 7 · JPA(Hibernate 7) · Flyway | MyBatis (집계 조회, 3단계) |
 | DB | PostgreSQL 16 | |
-| 테스트 | JUnit 5 · 임베디드 PostgreSQL 16 · ArchUnit | Playwright, k6 |
-| 프론트 | | React 18 · TypeScript · Vite · AG Grid |
-| 인프라 | GitHub Actions · Docker · Docker Compose | 클라우드 VM 배포 |
+| 테스트 | JUnit 5 · 임베디드 PostgreSQL 16 · ArchUnit · Vitest · Testing Library | Playwright, k6 |
+| 프론트 | React 19 · TypeScript 7 · Vite 8 · React Router 7 · TanStack Query 5 · AG Grid 36 | OpenAPI 타입 자동 생성 |
+| 인프라 | GitHub Actions · Docker · Caddy · GHCR | 클라우드 VM 배포 (서버 준비 중) |
