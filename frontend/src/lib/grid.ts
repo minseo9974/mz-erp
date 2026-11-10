@@ -7,6 +7,7 @@ import {
   CheckboxEditorModule,
   ClientSideRowModelModule,
   ModuleRegistry,
+  RowStyleModule,
   TextEditorModule,
   ValidationModule,
 } from 'ag-grid-community'
@@ -17,6 +18,7 @@ ModuleRegistry.registerModules([
   TextEditorModule,
   CheckboxEditorModule,
   CellStyleModule,
+  RowStyleModule, // 전표 목록: 전기·역분개·선택 행 표시 (rowClassRules)
   ...(import.meta.env.DEV ? [ValidationModule] : []),
 ])
 

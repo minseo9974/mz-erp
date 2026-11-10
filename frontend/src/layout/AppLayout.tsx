@@ -9,10 +9,13 @@ const MENU = [
     { to: 'partners', label: '거래처' },
     { to: 'fiscal-years', label: '회계연도' },
   ] },
+  { group: '전표입력', items: [
+    { to: 'journal-entries', label: '일반전표 입력' },
+  ] },
 ]
 
 // 다음 단계에서 열릴 메뉴 (화면 설계: docs/design/screens.md)
-const COMING = ['전표입력 (2단계)', '장부조회 (3단계)', '부가가치세 (4단계)', '결산/재무제표 (5단계)']
+const COMING = ['장부조회 (3단계)', '부가가치세 (4단계)', '결산/재무제표 (5단계)']
 
 export function AppLayout() {
   const { companyId } = useParams()
