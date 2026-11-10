@@ -1,0 +1,22 @@
+# Caddy가 Let's Encrypt 인증서를 자동으로 발급·갱신한다 (도메인이 이 서버 IP를 가리켜야 함)
+{$MZERP_DOMAIN} {
+	encode zstd gzip
+
+	@backend path /api/* /actuator/health /actuator/health/* /v3/api-docs* /swagger-ui*
+	handle @backend {
+		reverse_proxy backend:8080
+	}
+
+	# 프론트엔드가 생기면 정적 파일 서빙으로 교체 (1단계 남은 작업)
+	handle {
+		header Content-Type "text/plain; charset=utf-8"
+		respond "MZ-ERP — API: /swagger-ui.html" 200
+	}
+
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "same-origin"
+		-Server
+	}
+}

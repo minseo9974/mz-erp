@@ -20,7 +20,7 @@ REST + JSON. 이 문서는 0단계 설계용 초안이고, 1단계부터는 spri
 
 ```json
 {
-  "type": "https://mz-erp.dev/errors/JOURNAL_UNBALANCED",
+  "type": "urn:mzerp:error:JOURNAL_UNBALANCED",
   "title": "차변과 대변 합계가 다릅니다",
   "status": 422,
   "code": "JOURNAL_UNBALANCED",
