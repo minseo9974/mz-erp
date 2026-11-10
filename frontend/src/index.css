@@ -268,6 +268,205 @@ label {
   font-size: 12px;
 }
 
+.ok {
+  color: var(--ok);
+}
+
+.danger {
+  color: var(--danger);
+}
+
+button.danger {
+  border-color: var(--danger);
+}
+
+button.link {
+  height: auto;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  text-decoration: underline;
+}
+
+button.icon {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  color: var(--muted);
+}
+
+/* ---------- 일반전표 입력 */
+.grid-box.short {
+  height: 300px;
+  min-height: 200px;
+  margin-bottom: 16px;
+}
+
+.ag-row.row-posted {
+  color: var(--muted);
+  background: #f7f8fa;
+}
+
+.ag-row.row-reversed .ag-cell {
+  text-decoration: line-through;
+}
+
+.ag-row.row-selected {
+  background: var(--accent-soft);
+}
+
+.entry-editor {
+  display: grid;
+  gap: 12px;
+  overflow-x: auto;
+}
+
+.entry-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 20px;
+}
+
+.entry-head h2 {
+  margin: 0;
+}
+
+label.inline {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.entry-lines {
+  width: 100%;
+  min-width: 760px;
+  border-collapse: collapse;
+}
+
+.entry-lines th {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--muted);
+  text-align: left;
+  padding: 4px;
+  border-bottom: 1px solid var(--border);
+}
+
+.entry-lines td {
+  padding: 4px;
+  vertical-align: top;
+}
+
+.entry-lines input {
+  width: 100%;
+}
+
+.entry-lines input.money {
+  text-align: right;
+}
+
+.entry-lines tr.has-error input {
+  border-color: var(--danger);
+}
+
+.entry-lines td.money .muted {
+  display: inline-block;
+  padding-top: 7px;
+}
+
+.code-cell {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.code-cell input {
+  width: 72px;
+  flex-shrink: 0;
+}
+
+.code-name {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.line-error {
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--danger);
+}
+
+.entry-totals {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+  align-items: center;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+
+.entry-actions {
+  margin: 0;
+}
+
+.reverse-form {
+  padding: 12px;
+  border: 1px dashed var(--border);
+  border-radius: 6px;
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(16, 24, 40, 0.35);
+  display: grid;
+  place-items: center;
+  z-index: 50;
+  padding: 16px;
+}
+
+.modal {
+  width: min(460px, 100%);
+  max-height: 80vh;
+  display: grid;
+  grid-template-rows: auto auto 1fr auto;
+  gap: 8px;
+}
+
+.code-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  min-height: 120px;
+}
+
+.code-list li {
+  padding: 6px 10px;
+  cursor: pointer;
+}
+
+.code-list li[aria-selected='true'] {
+  background: var(--accent-soft);
+}
+
+.code-list .code {
+  display: inline-block;
+  width: 52px;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
+
+.modal .hint {
+  margin: 0;
+  font-size: 12px;
+}
+
 @media (max-width: 720px) {
   .app {
     grid-template-columns: 1fr;
@@ -293,4 +492,15 @@ label {
   .app-header .user-name {
     display: none;
   }
+}
+
+.kind-cell {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.entry-lines .kind-cell input {
+  width: 36px;
+  text-align: center;
 }
