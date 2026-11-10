@@ -42,7 +42,7 @@ export function AppLayout() {
         </select>
         <span className="badge">{ROLE_LABEL[company.role]}</span>
         <span className="spacer" />
-        <span className="muted">{me.data!.name}</span>
+        <span className="muted user-name">{me.data!.name}</span>
         <button
           onClick={() => logout.mutate(undefined, { onSuccess: () => navigate('/login', { replace: true }) })}
           disabled={logout.isPending}

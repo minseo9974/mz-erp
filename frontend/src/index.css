@@ -193,6 +193,17 @@ label {
   color: var(--accent);
 }
 
+.app-header > * {
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.app-header select {
+  flex-shrink: 1;
+  min-width: 0;
+  max-width: 220px;
+}
+
 .app-header .spacer {
   flex: 1;
 }
@@ -271,6 +282,15 @@ label {
 
   .app-sidebar .group,
   .app-sidebar .soon {
+    display: none;
+  }
+
+  .app-header {
+    gap: 8px;
+    padding: 0 10px;
+  }
+
+  .app-header .user-name {
     display: none;
   }
 }
