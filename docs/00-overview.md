@@ -42,3 +42,15 @@
 - [ ] 계정코드·매입매출 유형 번호를 실제 전산회계 프로그램(KcLep)과 대조
 - [x] API 명세 초안 — [design/api.md](design/api.md)
 - [x] 화면 목록과 와이어프레임 — [design/screens.md](design/screens.md)
+
+## 1단계 체크리스트
+
+- [x] 백엔드 뼈대: Spring Boot 4.1.2, Java 21, Gradle (설계서의 Boot 3.x는 지원 종료로 4.x로 변경)
+- [x] DB 스키마 V1 (사용자·권한, 회사, 회계연도·기간, 계정, 거래처) — Flyway
+- [x] 세션 로그인 + CSRF, 회사별 역할 — [ADR-0008](adr/0008-session-auth.md)
+- [x] 기준정보 API: 회사, 계정과목(표준표 자동 복사), 거래처, 회계연도
+- [x] 통합 테스트 31개 (임베디드 PostgreSQL 16) — [ADR-0009](adr/0009-embedded-postgres-for-tests.md), ArchUnit
+- [x] Dockerfile, docker-compose, GitHub Actions CI (테스트 · 이미지 빌드 · 시나리오 정답 동기화)
+- [ ] 프론트엔드 뼈대: 로그인, 회사 선택, 계정과목·거래처 화면
+- [x] 배포 구성: Oracle Always Free VM + Caddy + GHCR + SSH 배포 — [deploy.md](deploy.md), [ADR-0010](adr/0010-oracle-free-vm-deploy.md)
+- [ ] Oracle 가입·VM 생성(직접) → 서버 준비 → 첫 자동 배포

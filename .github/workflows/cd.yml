@@ -1,0 +1,116 @@
+name: CD
+
+# main의 CI가 성공하면: arm64 이미지 빌드 → GHCR 푸시 → 운영 서버(Oracle A1)에 SSH 배포 → 헬스체크
+# 수동 실행(workflow_dispatch)으로 이전 이미지 태그를 지정하면 빌드 없이 그 버전으로 롤백한다.
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: "배포할 이미지 태그 (비우면 현재 커밋으로 새로 빌드). 롤백 시 이전 커밋 SHA"
+        required: false
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+env:
+  IMAGE: ghcr.io/${{ github.repository_owner }}/mz-erp-backend
+
+jobs:
+  image:
+    name: arm64 이미지 빌드·푸시
+    if: >-
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.image_tag == '') ||
+      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success')
+    runs-on: ubuntu-24.04-arm # 서버가 Ampere(arm64)라 같은 아키텍처에서 빌드 (공개 저장소 무료)
+    outputs:
+      tag: ${{ steps.meta.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+      - id: meta
+        run: echo "tag=$(git rev-parse --short=12 HEAD)" >> "$GITHUB_OUTPUT"
+      - name: GHCR 로그인
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+      - name: 빌드·푸시
+        run: |
+          docker build -f backend/Dockerfile \
+            --label org.opencontainers.image.source=https://github.com/${{ github.repository }} \
+            -t "$IMAGE:${{ steps.meta.outputs.tag }}" -t "$IMAGE:latest" .
+          docker push "$IMAGE:${{ steps.meta.outputs.tag }}"
+          docker push "$IMAGE:latest"
+
+  deploy:
+    name: 운영 서버 배포
+    needs: image
+    # 롤백(태그 지정)일 때는 image 잡이 건너뛰어져도 실행
+    if: >-
+      always() &&
+      (needs.image.result == 'success' ||
+       (github.event_name == 'workflow_dispatch' && github.event.inputs.image_tag != ''))
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+      DEPLOY_DOMAIN: ${{ vars.DEPLOY_DOMAIN }}
+      TAG: ${{ github.event.inputs.image_tag || needs.image.outputs.tag }}
+    steps:
+      - name: 배포 설정 확인
+        id: guard
+        run: |
+          if [ -z "$DEPLOY_HOST" ] || [ -z "$DEPLOY_DOMAIN" ]; then
+            echo "::notice::DEPLOY_HOST 시크릿 또는 DEPLOY_DOMAIN 변수가 없어 배포를 건너뜁니다 (docs/deploy.md 참고)"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/checkout@v7
+        if: steps.guard.outputs.skip != 'true'
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+      - name: SSH 키 준비
+        if: steps.guard.outputs.skip != 'true'
+        run: |
+          install -d -m 700 ~/.ssh
+          echo "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/id_deploy
+          chmod 600 ~/.ssh/id_deploy
+          echo "${{ secrets.DEPLOY_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
+      - name: 서버 구성 파일 복사
+        if: steps.guard.outputs.skip != 'true'
+        run: |
+          scp -i ~/.ssh/id_deploy infra/server/docker-compose.yml infra/server/Caddyfile \
+            "deploy@$DEPLOY_HOST:/opt/mz-erp/"
+      - name: 새 이미지로 교체
+        if: steps.guard.outputs.skip != 'true'
+        run: |
+          ssh -i ~/.ssh/id_deploy "deploy@$DEPLOY_HOST" "TAG=$TAG bash -s" <<'EOF'
+          set -euo pipefail
+          cd /opt/mz-erp
+          if grep -q '^IMAGE_TAG=' .env; then
+            sed -i "s/^IMAGE_TAG=.*/IMAGE_TAG=$TAG/" .env
+          else
+            echo "IMAGE_TAG=$TAG" >> .env
+          fi
+          docker compose pull backend
+          docker compose up -d --remove-orphans
+          docker image prune -f
+          EOF
+      - name: 헬스체크
+        if: steps.guard.outputs.skip != 'true'
+        run: |
+          for i in $(seq 1 30); do
+            if curl -fsS "https://$DEPLOY_DOMAIN/actuator/health" | grep -q '"UP"'; then
+              echo "배포 성공: https://$DEPLOY_DOMAIN (이미지 $TAG)"
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "::error::헬스체크 실패 — 서버에서 'docker compose logs backend' 확인"
+          exit 1

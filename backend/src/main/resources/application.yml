@@ -1,0 +1,35 @@
+spring:
+  application:
+    name: mz-erp
+  datasource:
+    url: ${MZERP_DB_URL:jdbc:postgresql://localhost:5432/mzerp}
+    username: ${MZERP_DB_USERNAME:mzerp}
+    password: ${MZERP_DB_PASSWORD:mzerp}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+  flyway:
+    locations: classpath:db/migration
+
+server:
+  servlet:
+    session:
+      timeout: 8h
+      cookie:
+        http-only: true
+        same-site: lax
+        secure: ${MZERP_COOKIE_SECURE:false}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+
+mzerp:
+  bootstrap:
+    # 사용자가 한 명도 없을 때만 이 계정으로 첫 관리자를 만든다 (둘 다 비어 있으면 건너뜀)
+    admin-login-id: ${MZERP_ADMIN_LOGIN_ID:}
+    admin-password: ${MZERP_ADMIN_PASSWORD:}
+    admin-name: ${MZERP_ADMIN_NAME:관리자}

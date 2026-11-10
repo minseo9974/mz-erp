@@ -1,0 +1,61 @@
+# 운영 서버 구성 (Oracle Cloud A1 VM 1대): Caddy(HTTPS) + 백엔드 + PostgreSQL 16
+# 이 파일은 CD가 배포할 때마다 서버의 /opt/mz-erp/ 로 복사한다 — 서버에서 직접 고치지 말 것.
+# 서버의 /opt/mz-erp/.env 에 비밀값과 IMAGE_TAG가 있다 (.env.example 참고).
+services:
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      MZERP_DOMAIN: ${MZERP_DOMAIN:?MZERP_DOMAIN을 .env에 설정하세요}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - backend
+
+  backend:
+    image: ghcr.io/minseo9974/mz-erp-backend:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      MZERP_DB_URL: jdbc:postgresql://db:5432/mzerp
+      MZERP_DB_USERNAME: mzerp
+      MZERP_DB_PASSWORD: ${MZERP_DB_PASSWORD:?}
+      MZERP_ADMIN_LOGIN_ID: ${MZERP_ADMIN_LOGIN_ID:-}
+      MZERP_ADMIN_PASSWORD: ${MZERP_ADMIN_PASSWORD:-}
+      MZERP_COOKIE_SECURE: "true"
+      JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=60 -Duser.timezone=Asia/Seoul"
+      TZ: Asia/Seoul
+    mem_limit: 1536m
+    expose:
+      - "8080"
+
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: mzerp
+      POSTGRES_USER: mzerp
+      POSTGRES_PASSWORD: ${MZERP_DB_PASSWORD:?}
+      TZ: Asia/Seoul
+    command: ["postgres", "-c", "shared_buffers=256MB", "-c", "max_connections=50"]
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mzerp -d mzerp"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    mem_limit: 1g
+    # 외부 포트 없음: DB는 compose 내부 네트워크에서만 접근
+
+volumes:
+  db-data:
+  caddy-data:
+  caddy-config:
