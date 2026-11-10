@@ -58,6 +58,7 @@ public class FiscalPeriod {
     }
 
     public Long getId() { return id; }
+    public FiscalYear getFiscalYear() { return fiscalYear; }
     public int getPeriodNo() { return periodNo; }
     public LocalDate getStartDate() { return startDate; }
     public LocalDate getEndDate() { return endDate; }

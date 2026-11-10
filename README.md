@@ -3,7 +3,7 @@
 전표 입력부터 장부, 결산, 재무제표, 부가세, 차기이월까지 **회계 흐름 전체를 직접 구현하는 회계 ERP**입니다.
 전산회계 1급 실무 범위(제조업 법인)를 기준으로 만들고, 결과 재무제표가 수기 계산 정답과 일치하는지 테스트로 검증합니다.
 
-> 상태: **1단계 — 기반 구축** 진행 중 · 0단계(설계) 완료
+> 상태: **2단계 — 전표 엔진** 진행 중 · 0단계 완료 · 1단계는 운영 서버 연결만 남음
 
 [![CI](https://github.com/minseo9974/mz-erp/actions/workflows/ci.yml/badge.svg)](https://github.com/minseo9974/mz-erp/actions/workflows/ci.yml)
 
@@ -11,8 +11,10 @@
 
 - 세션 로그인 + CSRF, 회사별 역할(WRITER / APPROVER / ADMIN)
 - 회사 생성 시 표준 계정과목표(94개) 자동 복사, 계정·거래처 검색·등록·수정, 회계연도(12개월 기간) 생성
+- **전표 엔진**: 일반전표 작성·수정·삭제·전기·일괄 전기·역분개, 일자별 전표번호(동시 입력 안전)
+  - 차대 일치·전기 후 불변·마감 기간 차단을 **앱과 DB 트리거 양쪽에서** 강제 — [코드 해설](docs/walkthrough/02-journal-engine.md)
 - 화면: 로그인, 회사 선택·생성, 계정과목(그리드·검색·관리자 수정), 거래처(등록·수정), 회계연도
-- 테스트: 백엔드 통합 테스트 31개 (실제 PostgreSQL 16), 프론트 단위 테스트 25개, 모듈 의존 방향 검사(ArchUnit)
+- 테스트: 백엔드 67개 (실제 PostgreSQL 16, DB 트리거 직접 공격·동시 채번 포함), 프론트 25개, 모듈 의존 방향 검사(ArchUnit)
 - CI/CD: PR마다 백엔드·프론트·Docker 이미지·시나리오 정답 검사, main 병합 시 arm64 이미지를 GHCR에 배포
 
 ```bash
@@ -42,6 +44,7 @@ cd frontend && npm install && npm run dev   # http://localhost:5173 (admin / adm
 | [backend/](backend/) | Spring Boot 백엔드 |
 | [frontend/](frontend/) | React 프론트엔드 |
 | [docs/accounting-notes/](docs/accounting-notes/) | 기능별 회계 규칙 노트 |
+| [docs/walkthrough/](docs/walkthrough/) | 핵심 엔진 코드 해설 (읽는 순서, 규칙↔코드↔테스트, 면접 질문) |
 
 ## 기술 스택
 

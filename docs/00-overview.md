@@ -53,4 +53,19 @@
 - [x] Dockerfile, docker-compose, GitHub Actions CI (테스트 · 이미지 빌드 · 시나리오 정답 동기화)
 - [x] 프론트엔드 뼈대: 로그인, 회사 선택, 계정과목·거래처·회계연도 화면 (React 19, 설계서의 18에서 변경) + 로컬 실행 모드(`bootTestRun`)
 - [x] 배포 구성: Oracle Always Free VM + Caddy + GHCR + SSH 배포 — [deploy.md](deploy.md), [ADR-0010](adr/0010-oracle-free-vm-deploy.md)
-- [ ] Oracle 가입·VM 생성(직접) → 서버 준비 → 첫 자동 배포
+- [ ] ⏸ 보류: Oracle 가입·VM 생성(직접) → 서버 준비 → 첫 자동 배포 (서버가 늦어져 2단계를 먼저 진행)
+- [ ] 공개 배포 전 필수: 로그인 시도 제한 (실패 5회 잠금)
+
+## 2단계 체크리스트
+
+작업 방식 변경(2026-11-10): 핵심 엔진도 Claude가 작성하고 [docs/walkthrough/](walkthrough/) 해설로 같이 읽는다 (CLAUDE.md).
+
+- [x] 회계 노트 02 — 전표·전기·역분개·전표번호 ([accounting-notes/02](accounting-notes/02-journal-posting-reversal.md))
+- [x] V2 스키마: 전표·라인·채번 테이블, DB 방어선 트리거 3종
+- [x] 전표 엔진: `Money`, `JournalEntry`(차대 검증·전기·역분개), `JournalService`, 채번 — [ADR-0011](adr/0011-entry-number-sequence.md)
+- [x] 일반전표 API: 작성·수정·삭제·전기·일괄 전기·역분개·조회
+- [x] 테스트: 도메인 단위, API 통합, DB 직접 공격, 동시 채번 (백엔드 전체 67개)
+- [x] 해설 문서 — [walkthrough/02-journal-engine.md](walkthrough/02-journal-engine.md)
+- [ ] 일반전표 입력 화면 (출금·입금·대체 구분, F2 코드 도움)
+- [ ] 전기분 재무상태표(기초잔액 OPENING 전표) API·화면
+- [ ] 시나리오 회사 1년치 일반전표 입력 골든 테스트 (시산표 비교는 3단계)

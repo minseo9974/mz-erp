@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Map;
 
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ProblemDetail;
@@ -44,6 +45,12 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     ResponseEntity<ProblemDetail> handleIntegrity(DataIntegrityViolationException e) {
         // 서비스에서 먼저 검사하지만, 동시에 같은 코드를 등록하는 경우 DB 제약이 마지막 방어선이 된다
         return respond(ErrorCode.DATA_CONFLICT, null, null);
+    }
+
+    @ExceptionHandler(OptimisticLockingFailureException.class)
+    ResponseEntity<ProblemDetail> handleOptimisticLock(OptimisticLockingFailureException e) {
+        // 같은 전표를 두 사람이 동시에 고친 경우 (JPA @Version)
+        return respond(ErrorCode.VERSION_CONFLICT, null, null);
     }
 
     @Override

@@ -12,7 +12,20 @@ public enum ErrorCode {
     FISCAL_YEAR_OVERLAP(HttpStatus.CONFLICT, "다른 회계연도와 기간이 겹칩니다"),
     DATA_CONFLICT(HttpStatus.CONFLICT, "데이터 제약 조건에 맞지 않습니다"),
     ACCOUNT_SYSTEM_LOCKED(HttpStatus.UNPROCESSABLE_CONTENT, "시스템 계정은 수정할 수 없습니다"),
-    ACCOUNT_CONTRA_INVALID(HttpStatus.UNPROCESSABLE_CONTENT, "차감 대상 계정이 올바르지 않습니다");
+    ACCOUNT_CONTRA_INVALID(HttpStatus.UNPROCESSABLE_CONTENT, "차감 대상 계정이 올바르지 않습니다"),
+
+    // 전표 (회계 노트 02)
+    JOURNAL_UNBALANCED(HttpStatus.UNPROCESSABLE_CONTENT, "차변과 대변 합계가 다릅니다"),
+    JOURNAL_TOO_FEW_LINES(HttpStatus.UNPROCESSABLE_CONTENT, "전표 라인은 2줄 이상이어야 합니다"),
+    LINE_AMOUNT_INVALID(HttpStatus.UNPROCESSABLE_CONTENT, "금액이 올바르지 않습니다"),
+    PARTNER_REQUIRED(HttpStatus.UNPROCESSABLE_CONTENT, "거래처가 필요한 계정입니다"),
+    ACCOUNT_NOT_POSTABLE(HttpStatus.UNPROCESSABLE_CONTENT, "전표에 쓸 수 없는 계정입니다"),
+    FISCAL_PERIOD_NOT_FOUND(HttpStatus.UNPROCESSABLE_CONTENT, "해당 날짜의 회계기간이 없습니다"),
+    PERIOD_CLOSED(HttpStatus.CONFLICT, "마감된 기간입니다"),
+    ENTRY_IMMUTABLE(HttpStatus.CONFLICT, "전기된 전표는 수정·삭제할 수 없습니다"),
+    ENTRY_NOT_POSTED(HttpStatus.CONFLICT, "전기되지 않은 전표입니다"),
+    ENTRY_ALREADY_REVERSED(HttpStatus.CONFLICT, "이미 역분개된 전표입니다"),
+    VERSION_CONFLICT(HttpStatus.CONFLICT, "다른 사용자가 먼저 수정했습니다. 새로고침 후 다시 시도하세요");
 
     private final HttpStatus status;
     private final String title;
