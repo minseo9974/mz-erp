@@ -51,6 +51,6 @@
 - [x] 기준정보 API: 회사, 계정과목(표준표 자동 복사), 거래처, 회계연도
 - [x] 통합 테스트 31개 (임베디드 PostgreSQL 16) — [ADR-0009](adr/0009-embedded-postgres-for-tests.md), ArchUnit
 - [x] Dockerfile, docker-compose, GitHub Actions CI (테스트 · 이미지 빌드 · 시나리오 정답 동기화)
-- [ ] 프론트엔드 뼈대: 로그인, 회사 선택, 계정과목·거래처 화면
+- [x] 프론트엔드 뼈대: 로그인, 회사 선택, 계정과목·거래처·회계연도 화면 (React 19, 설계서의 18에서 변경) + 로컬 실행 모드(`bootTestRun`)
 - [x] 배포 구성: Oracle Always Free VM + Caddy + GHCR + SSH 배포 — [deploy.md](deploy.md), [ADR-0010](adr/0010-oracle-free-vm-deploy.md)
 - [ ] Oracle 가입·VM 생성(직접) → 서버 준비 → 첫 자동 배포

@@ -52,6 +52,11 @@ tasks.withType<Test> {
 	useJUnitPlatform()
 }
 
+// 로컬 개발: ./gradlew bootTestRun → 임베디드 PostgreSQL과 함께 백엔드 실행 (LocalDevApplication)
+tasks.named<org.springframework.boot.gradle.tasks.run.BootRun>("bootTestRun") {
+	mainClass = "com.mzerp.LocalDevApplication"
+}
+
 // 실행용 jar 하나만 만든다 (Docker 이미지에서 이름 고정)
 tasks.named<Jar>("jar") {
 	enabled = false

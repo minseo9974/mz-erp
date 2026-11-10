@@ -1,9 +1,9 @@
-# 운영 서버 구성 (Oracle Cloud A1 VM 1대): Caddy(HTTPS) + 백엔드 + PostgreSQL 16
+# 운영 서버 구성 (Oracle Cloud A1 VM 1대): 웹(Caddy + 화면 파일, HTTPS) + 백엔드 + PostgreSQL 16
 # 이 파일은 CD가 배포할 때마다 서버의 /opt/mz-erp/ 로 복사한다 — 서버에서 직접 고치지 말 것.
 # 서버의 /opt/mz-erp/.env 에 비밀값과 IMAGE_TAG가 있다 (.env.example 참고).
 services:
   caddy:
-    image: caddy:2
+    image: ghcr.io/minseo9974/mz-erp-web:${IMAGE_TAG:-latest}
     restart: unless-stopped
     ports:
       - "80:80"
