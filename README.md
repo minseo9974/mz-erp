@@ -17,8 +17,9 @@
   - 차대 일치·전기 후 불변·마감 기간 차단을 **앱과 DB 트리거 양쪽에서** 강제 — [코드 해설](docs/walkthrough/02-journal-engine.md)
 - 화면: 로그인, 회사 선택·생성, 계정과목(그리드·검색·관리자 수정), 거래처(등록·수정), 회계연도,
   전기분 재무상태표, **일반전표 입력**(출금·입금·차변·대변, F2 코드 도움, 키보드만으로 입력·저장·전기·역분개)
+- **실습 엔진** (화면은 아직 없음): 과정을 시작하면 나만의 실습 회사가 생기고, 미션마다 ERP에서 전표를 써서 결재를 요청하면 장부 잔액의 변화로 채점해 승인(전기)하거나 반려 사유를 돌려준다 — [코드 해설](docs/walkthrough/03-grading-engine.md)
 - **골든 테스트**: 시나리오 회사 1년치(기초잔액 1 + 거래 38 + 결산 9)를 ERP로 재생한 장부가, 앱과 무관하게 계산·검산한 정답과 일치
-- 테스트: 백엔드 86개 (실제 PostgreSQL 16, DB 트리거 직접 공격·동시 채번 포함), 프론트 53개, 모듈 의존 방향 검사(ArchUnit)
+- 테스트: 백엔드 106개 (실제 PostgreSQL 16, DB 트리거 직접 공격·동시 채번 포함), 프론트 53개, 모듈 의존 방향 검사(ArchUnit)
 - CI/CD: PR마다 백엔드·프론트·Docker 이미지·시나리오 정답 검사, main 병합 시 arm64 이미지를 GHCR에 배포
 
 ```bash
@@ -56,7 +57,7 @@ cd frontend && npm install && npm run dev   # http://localhost:5173 (admin / adm
 
 | 영역 | 사용 중 | 예정 |
 | --- | --- | --- |
-| 백엔드 | Java 21 · Spring Boot 4.1 · Spring Security 7 · JPA(Hibernate 7) · Flyway | MyBatis (집계 조회, 3단계) |
+| 백엔드 | Java 21 · Spring Boot 4.1 · Spring Security 7 · JPA(Hibernate 7) · MyBatis(집계 조회) · Flyway | |
 | DB | PostgreSQL 16 | |
 | 테스트 | JUnit 5 · 임베디드 PostgreSQL 16 · ArchUnit · Vitest · Testing Library | Playwright, k6 |
 | 프론트 | React 19 · TypeScript 7 · Vite 8 · React Router 7 · TanStack Query 5 · AG Grid 36 | OpenAPI 타입 자동 생성 |

@@ -259,6 +259,22 @@ POST /api/v1/companies/1/closing/2026/auto-entries
 | GET | `/audit-logs?entityType=JOURNAL_ENTRY&entityId=1042` | 변경 이력 |
 | GET / POST | `/users`, `/users/{id}/roles` | 사용자·역할 (WRITER / APPROVER / ADMIN) |
 
+## 실습 (회사 경로 밖, `/api/v1/learning`)
+
+로그인한 사용자 자신의 수강·시도만 다룬다 (남의 것은 404). 전표 작성·수정은 이 API가 아니라 실습 회사의 일반전표 API로 한다.
+
+| 메서드 | 경로 | 설명 |
+| --- | --- | --- |
+| POST | `/enrollments` | 과정 시작 `{ "courseKey": "accounting-basics" }` → 실습 회사 생성. 이미 시작했으면 그 수강 |
+| GET | `/enrollments/{id}` | 장·미션 목록과 상태 (`NOT_STARTED` · `IN_PROGRESS` · `PASSED` · `REVEALED`) |
+| POST | `/enrollments/{id}/missions/{key}/start` | 미션 시작 — 지금 장부 잔액을 저장. 한 번에 하나만 (`MISSION_IN_PROGRESS` 409) |
+| GET | `/attempts/{id}` | 미션 시도: 상황, 거래일, 연 힌트, 제출 횟수 |
+| POST | `/attempts/{id}/submit` | 결재 요청 → `{ passed, findings: [{ type, message }], attempt }`. 통과하면 팀장이 임시 전표를 전기 |
+| POST | `/attempts/{id}/hint` | 다음 힌트 열기 |
+| POST | `/attempts/{id}/reveal` | 정답 보고 넘어가기 — 쓰던 임시 전표를 지우고 정답 전표를 전기 |
+
+반려 사유 유형: `NO_ENTRY` · `SIDE_SWAPPED` · `WRONG_PARTNER` · `WRONG_ACCOUNT` · `WRONG_AMOUNT` · `WRONG_DATE` · `UNEXPECTED_CHANGE` ([ADR-0013](../adr/0013-state-based-grading.md))
+
 ## 인증 (회사 경로 밖)
 
 | 메서드 | 경로 | 설명 |

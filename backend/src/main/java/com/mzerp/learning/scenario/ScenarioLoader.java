@@ -63,7 +63,8 @@ public final class ScenarioLoader {
                 lines(e.get("lines"), type + " #" + no));
     }
 
-    private static List<Scenario.Line> lines(Object raw, String where) {
+    /** 라인 배열 한 묶음을 읽는다. 과정 파일의 accept(대안 분개)도 같은 형식이라 함께 쓴다. */
+    public static List<Scenario.Line> lines(Object raw, String where) {
         return list(raw).stream().map(item -> {
             List<?> cells = list(item);
             if (cells.size() < 3 || cells.size() > 4) {

@@ -27,6 +27,10 @@ public enum ErrorCode {
     ENTRY_ALREADY_REVERSED(HttpStatus.CONFLICT, "이미 역분개된 전표입니다"),
     REVERSAL_DATE_INVALID(HttpStatus.UNPROCESSABLE_CONTENT, "역분개일은 원전표일보다 빠를 수 없습니다"),
     OPENING_NOT_FIRST_YEAR(HttpStatus.UNPROCESSABLE_CONTENT, "기초잔액은 첫 회계연도에만 직접 입력합니다"),
+
+    // 실습 (docs/design/training-site.md)
+    MISSION_IN_PROGRESS(HttpStatus.CONFLICT, "진행 중인 미션을 먼저 끝내세요"),
+    MISSION_ALREADY_FINISHED(HttpStatus.CONFLICT, "이미 끝난 미션입니다"),
     VERSION_CONFLICT(HttpStatus.CONFLICT, "다른 사용자가 먼저 수정했습니다. 새로고침 후 다시 시도하세요");
 
     private final HttpStatus status;

@@ -1,10 +1,11 @@
-# 빌드 컨텍스트는 저장소 루트 (data/seed, data/scenario가 필요하므로)
+# 빌드 컨텍스트는 저장소 루트 (data/seed, data/scenario, data/course가 필요하므로)
 #   docker build -f backend/Dockerfile -t mz-erp-backend .
 
 FROM eclipse-temurin:21-jdk AS build
 WORKDIR /workspace
 COPY data/seed data/seed
 COPY data/scenario data/scenario
+COPY data/course data/course
 COPY backend/gradlew backend/gradlew
 COPY backend/gradle backend/gradle
 COPY backend/build.gradle.kts backend/settings.gradle.kts backend/
