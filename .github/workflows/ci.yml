@@ -79,6 +79,6 @@ jobs:
       - name: 정답 재생성
         run: python -I tools/scenario/compute_answers.py
       - name: 커밋된 정답과 같은지 확인
-        run: git diff --exit-code -- docs/scenario
+        run: git diff --exit-code -- docs/scenario data/scenario
       - name: 독립 재검산 (생성기와 별개의 코드)
         run: python -I tools/scenario/recheck_answers.py

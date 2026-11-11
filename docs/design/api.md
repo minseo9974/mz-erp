@@ -41,6 +41,7 @@ REST + JSON. 이 문서는 0단계 설계용 초안이고, 1단계부터는 spri
 | `ENTRY_IMMUTABLE` | 409 | POSTED 전표 수정·삭제 |
 | `ENTRY_ALREADY_REVERSED` | 409 | 이미 역분개된 전표를 또 역분개 |
 | `REVERSAL_DATE_INVALID` | 422 | 역분개일이 원전표일보다 빠름 |
+| `OPENING_NOT_FIRST_YEAR` | 422 | 첫 회계연도가 아닌데 기초잔액을 직접 입력 |
 | `VERSION_CONFLICT` | 409 | 다른 사람이 먼저 수정 |
 | `FORBIDDEN_ROLE` | 403 | 역할 권한 부족 (예: WRITER가 전기) |
 
@@ -54,7 +55,8 @@ REST + JSON. 이 문서는 0단계 설계용 초안이고, 1단계부터는 spri
 | POST / PATCH | `/partners`, `/partners/{code}` | 거래처 등록·수정 | 1 |
 | GET | `/fiscal-years` | 회계연도 목록과 월별 마감 상태 | 1 |
 | POST | `/fiscal-years` | 회계연도 생성 (12개 기간 자동 생성) | 1 |
-| PUT | `/fiscal-years/{year}/opening-balance` | 전기분 재무상태표 저장 → OPENING 전표 생성·교체 (첫 해만) | 2 |
+| GET | `/fiscal-years/{year}/opening-balance` | 전기분 재무상태표 조회. `{year}`는 회계연도가 시작하는 해. `entry`가 null이면 아직 입력 전 | 2 |
+| PUT | `/fiscal-years/{year}/opening-balance` | 전기분 재무상태표 저장 `{ "lines": [...] }` → 임시 OPENING 전표 생성·교체 (첫 해만, 재무상태표 계정만). 전기·삭제·역분개는 일반전표 API로 | 2 |
 
 ## 2. 전표
 

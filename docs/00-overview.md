@@ -74,12 +74,13 @@ L1을 3단계보다 먼저 하는 이유: 엔진은 만드는 법을 알지만 "
 - [x] V2 스키마: 전표·라인·채번 테이블, DB 방어선 트리거 3종
 - [x] 전표 엔진: `Money`, `JournalEntry`(차대 검증·전기·역분개), `JournalService`, 채번 — [ADR-0011](adr/0011-entry-number-sequence.md)
 - [x] 일반전표 API: 작성·수정·삭제·전기·일괄 전기·역분개·조회
-- [x] 테스트: 도메인 단위, API 통합, DB 직접 공격, 동시 채번 (백엔드 전체 74개)
+- [x] 테스트: 도메인 단위, API 통합, DB 직접 공격, 동시 채번 (백엔드 전체 86개)
 - [x] 방어선 보강(V3): 라인 이동 금지, 마감 기간 전기 차단 + 기간 공유 잠금, 역분개 대상·일자 검사 — [해설 §5-3](walkthrough/02-journal-engine.md)
 - [x] 해설 문서 — [walkthrough/02-journal-engine.md](walkthrough/02-journal-engine.md)
 - [x] 일반전표 입력 화면: 출금·입금·차변·대변, F2 코드 도움, Enter 이동·차액 자동 줄, 전기·역분개 — [screens.md](design/screens.md#구현-메모-2단계)
-- [ ] 전기분 재무상태표(기초잔액 OPENING 전표) API·화면
-- [ ] 시나리오 리플레이어 + 1년치 재생 골든 테스트 (시산표 비교는 3단계). 리플레이어는 L1의 체크포인트·"정답 대신 처리"에도 쓴다 — [ADR-0014](adr/0014-sandbox-company-per-learner.md)
+- [x] 전기분 재무상태표(기초잔액 OPENING 전표) API·화면 — [회계 노트 03](accounting-notes/03-opening-balance.md), 첫 회계연도만, 재무상태표 계정만(앱 + V4 트리거)
+- [x] 시나리오 리플레이어 + 1년치 재생 골든 테스트 — 전표 48장을 재생한 장부가 정답(계정별·거래처별 합계, 순이익, 자산 = 부채 + 자본)과 일치. 리플레이어는 L1의 체크포인트·"정답 대신 처리"에도 쓴다 — [ADR-0014](adr/0014-sandbox-company-per-learner.md)
+  - 매입매출전표의 부가세 정보와 결산 자동분개는 4·5단계에서 재생에 합류한다 (지금은 분개 라인만)
 
 ## L1 체크리스트 — 실습 세로 조각 (0~1장)
 

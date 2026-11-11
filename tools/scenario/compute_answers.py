@@ -16,6 +16,7 @@ data/scenario/*.toml(거래·결산 분개)과 data/seed/accounts.csv(계정 속
 from __future__ import annotations
 
 import csv
+import json
 import sys
 import tomllib
 from collections import defaultdict
@@ -28,6 +29,8 @@ ACCOUNTS_CSV = ROOT / "data" / "seed" / "accounts.csv"
 SCENARIO = ROOT / "data" / "scenario" / "mz-electronics-2026.toml"
 OUT = ROOT / "docs" / "scenario" / "answers-2026.md"
 JOURNAL_OUT = ROOT / "docs" / "scenario" / "journal-2026.md"
+# 앱의 골든 테스트(ScenarioGoldenTest)가 읽는 정답. 빌드 때 classpath:scenario/ 로 복사된다
+JSON_OUT = ROOT / "data" / "scenario" / "answers-2026.json"
 
 KIND_LABEL = {"OPENING": "기초잔액", "GENERAL": "일반전표", "SALES_PURCHASE": "매입매출전표", "CLOSING": "결산정리"}
 VAT_LABEL = {"11": "과세", "12": "영세", "13": "면세", "17": "카과", "22": "현과",
@@ -576,6 +579,17 @@ def main() -> int:
 
     OUT.write_text("\n".join(md), encoding="utf-8")
     JOURNAL_OUT.write_text(render_journal(entries, accounts, partners), encoding="utf-8")
+    pairs = sorted(set(full.pdr) | set(full.pcr))
+    JSON_OUT.write_text(json.dumps({
+        "entries": {"opening": 1,
+                    "transactions": sum(1 for e in entries if e.kind in ("GENERAL", "SALES_PURCHASE")),
+                    "closing": sum(1 for e in entries if e.kind == "CLOSING")},
+        "trialBalance": [{"code": c, "debit": full.dr[c], "credit": full.cr[c]} for c in used],
+        "partnerBalances": [{"account": c, "partner": p, "debit": full.pdr[(c, p)], "credit": full.pcr[(c, p)]}
+                            for (c, p) in pairs if full.pdr[(c, p)] or full.pcr[(c, p)]],
+        "totals": {"sales": sales, "costOfGoodsSold": cogs, "operatingIncome": op_income, "netIncome": net_income,
+                   "assets": assets, "liabilities": liabilities, "equity": eq_total},
+    }, ensure_ascii=False, indent=2) + chr(10), encoding="utf-8")
     print(f"OK — {OUT.relative_to(ROOT)}, {JOURNAL_OUT.relative_to(ROOT)} 생성, 검증 {len(checks)}건 통과")
     print(f"매출 {sales:,} / 매출원가 {cogs:,} / 영업이익 {op_income:,} / 당기순이익 {net_income:,}")
     print(f"자산 {assets:,} / 부채 {liabilities:,} / 자본 {eq_total:,}")

@@ -8,6 +8,7 @@ const MENU = [
     { to: 'accounts', label: '계정과목' },
     { to: 'partners', label: '거래처' },
     { to: 'fiscal-years', label: '회계연도' },
+    { to: 'opening-balance', label: '전기분 재무상태표' },
   ] },
   { group: '전표입력', items: [
     { to: 'journal-entries', label: '일반전표 입력' },

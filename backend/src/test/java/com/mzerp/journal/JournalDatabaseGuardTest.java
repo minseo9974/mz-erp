@@ -195,6 +195,22 @@ class JournalDatabaseGuardTest extends IntegrationTest {
                 .hasStackTraceContaining("전기된 일반 전표여야 합니다");
     }
 
+    @Test
+    @DisplayName("기초잔액(OPENING) 전표에는 SQL로도 수익·비용 계정을 넣을 수 없다 (V4)")
+    void openingEntryAcceptsOnlyBalanceSheetAccounts() {
+        Long sales = accountId("404");
+        assertThatThrownBy(() -> tx.executeWithoutResult(s -> {
+            Long id = jdbc.sql("""
+                            insert into journal_entry (company_id, fiscal_year_id, entry_date, entry_no, entry_type, status, created_by)
+                            values (?, ?, date '2026-01-01', 908, 'OPENING', 'DRAFT', ?)
+                            returning id
+                            """)
+                    .params(companyId, fiscalYearId, userId).query(Long.class).single();
+            insertLine(id, 1, cash, 1_000, 0);
+            insertLine(id, 2, sales, 0, 1_000);
+        })).hasStackTraceContaining("재무상태표 계정만");
+    }
+
     private void insertReversal(String date, int no, Long originalId) {
         jdbc.sql("""
                         insert into journal_entry (company_id, fiscal_year_id, entry_date, entry_no, entry_type, status,
