@@ -38,7 +38,7 @@ POST /journal-entries
 | 4 | `journal/JournalLine.java` | 차변/대변 한쪽만, 역분개용 뒤집기 |
 | 5 | **`journal/JournalService.java`** | `resolveLines`, `create`, `post`, `reverse` |
 | 6 | `journal/EntryNumberGenerator.java` | 채번 SQL 한 문장 |
-| 7 | `resources/db/migration/V2__journal.sql` | 테이블, 제약, 트리거 3개 |
+| 7 | `resources/db/migration/V2__journal.sql`, `V3__journal_guard_hardening.sql` | 테이블, 제약, 트리거 3개 + 보강(§5-3) |
 | 8 | 테스트 4개 | 아래 §6 표 |
 
 ## 2. Money — 금액은 원 단위 정수
@@ -150,6 +150,30 @@ returning last_no
 **왜 차대 검사는 커밋 시점에?** 라인을 한 줄씩 INSERT하는 동안은 당연히 차대가 안 맞는다. 즉시 검사하면 첫 줄에서 실패한다.
 **왜 줄번호 유니크도 커밋 시점에?** 임시 전표의 라인을 통째로 바꿀 때 JPA(Hibernate)는 **새 라인 INSERT를 옛 라인 DELETE보다 먼저** 실행한다. 즉시 검사하면 "1번 줄 중복"으로 실패한다.
 
+### 5-3. V3 보강 — 방어선에서 찾은 틈 3개
+
+엔진을 다 만든 뒤 "앱을 거치지 않고 SQL로 무엇을 할 수 있나"를 다시 따져 보니 틈이 3개 있었다. 셋 다 실제로 뚫리는 것을 테스트로 확인한 뒤 `V3__journal_guard_hardening.sql`로 막았다.
+
+| 틈 | 왜 뚫렸나 | 막은 방법 |
+| --- | --- | --- |
+| 임시 전표의 라인 2줄을 `entry_id`만 바꿔 **전기된 전표로 옮기기** | 불변 트리거는 옮기기 **전** 전표(임시)만 보고, 차대 트리거는 옮긴 **뒤** 전표만 봤다. 차대가 맞는 2줄을 옮기면 둘 다 통과 | 라인은 태어난 전표를 떠날 수 없다 (`entry_id` 변경 금지) |
+| 마감된 달에 남은 **임시 전표를 전기** | 마감 트리거가 `INSERT`와 날짜 변경만 감시. 전기는 `status`만 바꾼다 | 트리거가 `status` 변경도 감시 + 기간 행에 공유 잠금 |
+| 역분개 전표가 **원전표보다 앞 날짜**, 또는 임시 전표·다른 회사 전표를 가리킴 | 역분개 대상을 DB가 전혀 확인하지 않았다 (앱도 날짜는 확인 안 함) | `trg_journal_entry_reversal_target` + 서비스의 `REVERSAL_DATE_INVALID` |
+
+**공유 잠금(`FOR SHARE`)은 왜 필요한가?** 트리거가 "기간이 열려 있나"를 확인한 **직후**, 전표가 커밋되기 **직전**에 다른 사람이 그 달을 마감하면 검사는 통과했는데 결과는 마감된 달의 전표가 된다. 검사와 커밋 사이의 틈(time-of-check to time-of-use)이다.
+
+```sql
+select p.status into v_status from fiscal_period p join fiscal_year y on … for share of p;
+```
+
+- 전표를 쓰는 트랜잭션들은 기간 행에 **공유** 잠금을 건다 → 서로는 막지 않는다 (채번처럼 줄을 서지 않는다)
+- 마감은 기간 행을 `UPDATE` 해야 하므로 **진행 중인 전표 트랜잭션이 끝날 때까지 기다린다**
+- 마감이 먼저 커밋되면, 기다리던 전표 트랜잭션은 바뀐 행(`CLOSED`)을 읽고 거부된다
+
+테스트 `periodCannotBeClosedWhileAnEntryIsBeingWritten`은 전표를 넣고 커밋하지 않은 채로 다른 커넥션에서 마감을 시도해, 0.3초 안에 잠금을 못 얻고 포기하는 것(SQLSTATE `55P03`)을 확인한다.
+
+**남겨 둔 한계**: 역분개 전표의 라인이 원전표의 정확한 반대인지는 DB가 검사하지 않는다 (`JournalEntry.reversalOf`의 책임). 마감 시 그 달에 임시 전표가 남아 있으면 어떻게 할지는 5단계(마감 기능)에서 정한다.
+
 ## 6. 규칙 ↔ 코드 ↔ 테스트
 
 | 회계 규칙 | 코드 | 테스트 |
@@ -159,9 +183,9 @@ returning last_no
 | 한쪽 금액만, 양의 정수 | `validate` + CHECK | `invalidAmounts`, `lineWithBothSidesIsRejected` |
 | 거래처 필수 계정 | `JournalService.resolveLines` | `JournalApiTest > 작성 > 거래처 필수` |
 | 시스템 계정 금지 | 같은 곳 | `> 작성 > 결산 전용 시스템 계정` |
-| 열린 기간에만 | `FiscalCalendar` + 트리거 | `> 전기 > 마감된 달`, `closedPeriodIsGuarded` |
-| 전기 후 불변 | `requireDraft` + 트리거 2개 | `postedEntryIsImmutable`(단위·API), `postedEntryCannotBeTamperedWith`(SQL) |
-| 정정은 역분개, 한 번만 | `reversalDrafts`, `reverse` + 부분 유니크 | `> 역분개` 4개 |
+| 열린 기간에만 (생성·전기 모두) | `FiscalCalendar` + 트리거(공유 잠금) | `> 전기 > 마감된 달`, `closedPeriodIsGuarded`, `draftInClosedPeriodCannotBePosted`, `periodCannotBeClosedWhileAnEntryIsBeingWritten` |
+| 전기 후 불변 | `requireDraft` + 트리거 2개 | `postedEntryIsImmutable`(단위·API), `postedEntryCannotBeTamperedWith`, `linesCannotBeMovedIntoPostedEntry`(SQL) |
+| 정정은 역분개, 한 번만, 원전표일 이후 | `reversalDrafts`, `reverse` + 부분 유니크 + 대상 트리거 | `> 역분개` 5개, `reversalTargetIsGuarded` |
 | 일자별 번호, 동시 입력 안전 | `EntryNumberGenerator` | `createsDraftWithDailyNumber`, `EntryNumberConcurrencyTest` |
 | 일괄 전기는 전부 아니면 전무 | `postAll` (한 트랜잭션) | `> 전기 > 일괄 전기는 …` |
 | 라인은 전표를 통해서만 생성 | `JournalLine` 생성자 package-private | `ArchitectureTest.linesAreCreatedOnlyThroughEntry` |

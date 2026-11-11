@@ -64,7 +64,8 @@
 - [x] V2 스키마: 전표·라인·채번 테이블, DB 방어선 트리거 3종
 - [x] 전표 엔진: `Money`, `JournalEntry`(차대 검증·전기·역분개), `JournalService`, 채번 — [ADR-0011](adr/0011-entry-number-sequence.md)
 - [x] 일반전표 API: 작성·수정·삭제·전기·일괄 전기·역분개·조회
-- [x] 테스트: 도메인 단위, API 통합, DB 직접 공격, 동시 채번 (백엔드 전체 67개)
+- [x] 테스트: 도메인 단위, API 통합, DB 직접 공격, 동시 채번 (백엔드 전체 74개)
+- [x] 방어선 보강(V3): 라인 이동 금지, 마감 기간 전기 차단 + 기간 공유 잠금, 역분개 대상·일자 검사 — [해설 §5-3](walkthrough/02-journal-engine.md)
 - [x] 해설 문서 — [walkthrough/02-journal-engine.md](walkthrough/02-journal-engine.md)
 - [x] 일반전표 입력 화면: 출금·입금·차변·대변, F2 코드 도움, Enter 이동·차액 자동 줄, 전기·역분개 — [screens.md](design/screens.md#구현-메모-2단계)
 - [ ] 전기분 재무상태표(기초잔액 OPENING 전표) API·화면

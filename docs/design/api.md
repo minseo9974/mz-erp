@@ -40,6 +40,7 @@ REST + JSON. 이 문서는 0단계 설계용 초안이고, 1단계부터는 spri
 | `PERIOD_CLOSED` | 409 | 마감된 기간에 전표 생성·전기 |
 | `ENTRY_IMMUTABLE` | 409 | POSTED 전표 수정·삭제 |
 | `ENTRY_ALREADY_REVERSED` | 409 | 이미 역분개된 전표를 또 역분개 |
+| `REVERSAL_DATE_INVALID` | 422 | 역분개일이 원전표일보다 빠름 |
 | `VERSION_CONFLICT` | 409 | 다른 사람이 먼저 수정 |
 | `FORBIDDEN_ROLE` | 403 | 역할 권한 부족 (예: WRITER가 전기) |
 

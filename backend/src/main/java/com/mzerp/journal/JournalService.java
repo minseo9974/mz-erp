@@ -124,6 +124,7 @@ public class JournalService {
     /**
      * 역분개: 원전표와 차대가 반대인 전표를 만들어 바로 전기한다 (회계 노트 02 §5).
      * @param reversalDate 비우면 원전표 날짜. 원전표의 달이 마감됐으면 정정 날짜를 지정해야 한다.
+     *                     원전표일보다 빠를 수 없다 (REVERSAL_DATE_INVALID).
      */
     @Transactional
     public EntryView reverse(Long companyId, Long entryId, Long userId, LocalDate reversalDate, String reason) {
@@ -137,6 +138,11 @@ public class JournalService {
                     "전표 " + original.getEntryDate() + "-" + original.getEntryNo() + "은(는) 이미 역분개되었습니다");
         }
         LocalDate date = reversalDate != null ? reversalDate : original.getEntryDate();
+        // 취소가 원거래보다 먼저 장부에 나오면 그 사이 기간의 잔액이 실제와 달라진다
+        if (date.isBefore(original.getEntryDate())) {
+            throw new ApiException(ErrorCode.REVERSAL_DATE_INVALID,
+                    "원전표일 " + original.getEntryDate() + ", 역분개일 " + date);
+        }
         FiscalCalendar.OpenPeriod period = calendar.requireOpenPeriod(companyId, date);
         int entryNo = numbers.next(companyId, date);
 

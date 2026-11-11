@@ -25,6 +25,7 @@ public enum ErrorCode {
     ENTRY_IMMUTABLE(HttpStatus.CONFLICT, "전기된 전표는 수정·삭제할 수 없습니다"),
     ENTRY_NOT_POSTED(HttpStatus.CONFLICT, "전기되지 않은 전표입니다"),
     ENTRY_ALREADY_REVERSED(HttpStatus.CONFLICT, "이미 역분개된 전표입니다"),
+    REVERSAL_DATE_INVALID(HttpStatus.UNPROCESSABLE_CONTENT, "역분개일은 원전표일보다 빠를 수 없습니다"),
     VERSION_CONFLICT(HttpStatus.CONFLICT, "다른 사용자가 먼저 수정했습니다. 새로고침 후 다시 시도하세요");
 
     private final HttpStatus status;

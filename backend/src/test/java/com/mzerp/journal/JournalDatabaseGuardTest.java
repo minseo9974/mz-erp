@@ -3,6 +3,7 @@ package com.mzerp.journal;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.sql.SQLException;
 import java.time.LocalDate;
 import java.util.List;
 
@@ -14,6 +15,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.mock.web.MockHttpSession;
+import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
@@ -124,6 +126,87 @@ class JournalDatabaseGuardTest extends IntegrationTest {
         jdbc.sql("update fiscal_period set status = 'CLOSED' where fiscal_year_id = ? and period_no = 3").param(fiscalYearId).update();
         assertThatThrownBy(() -> tx.executeWithoutResult(s -> insertEntry("2026-03-15", 904, "DRAFT")))
                 .hasStackTraceContaining("마감된 기간");
+    }
+
+    // ------------------------------------------------------------------ V3 보강 (해설 §5-3)
+
+    private JournalService.EntryView draftByApp(String date, long amount) {
+        return journal.create(companyId, userId, new JournalService.EntryInput(LocalDate.parse(date), "정상 전표", List.of(
+                new JournalService.LineInput(Side.DEBIT, "103", null, amount, null),
+                new JournalService.LineInput(Side.CREDIT, "101", null, amount, null))));
+    }
+
+    @Test
+    @DisplayName("임시 전표의 라인을 전기된 전표로 옮길 수 없다 — 차대가 맞는 2줄이어도")
+    void linesCannotBeMovedIntoPostedEntry() {
+        Long posted = journal.post(companyId, draftByApp("2026-03-10", 1_000).id(), userId).id();
+        Long other = draftByApp("2026-03-10", 500).id();
+
+        assertThatThrownBy(() -> tx.executeWithoutResult(s ->
+                jdbc.sql("update journal_line set entry_id = ?, line_no = line_no + 2 where entry_id = ?").params(posted, other).update()))
+                .hasStackTraceContaining("다른 전표로 옮길 수 없습니다");
+
+        assertThat(jdbc.sql("select count(*) from journal_line where entry_id = ?").param(posted).query(Long.class).single()).isEqualTo(2);
+    }
+
+    @Test
+    @DisplayName("마감된 달에 남은 임시 전표는 SQL로도 전기할 수 없다")
+    void draftInClosedPeriodCannotBePosted() {
+        Long draft = draftByApp("2026-03-10", 1_000).id();
+        closeMarch();
+
+        assertThatThrownBy(() -> jdbc.sql("update journal_entry set status = 'POSTED', posted_by = ?, posted_at = now() where id = ?")
+                .params(userId, draft).update())
+                .hasStackTraceContaining("마감된 기간");
+    }
+
+    @Test
+    @DisplayName("전표를 쓰는 트랜잭션이 끝나기 전에는 그 달을 마감할 수 없다 (검사와 커밋 사이의 틈)")
+    void periodCannotBeClosedWhileAnEntryIsBeingWritten() {
+        TransactionTemplate another = new TransactionTemplate(tx.getTransactionManager());
+        another.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW); // 다른 커넥션 = 다른 사용자
+
+        tx.executeWithoutResult(s -> {
+            Long id = insertEntry("2026-03-10", 905, "DRAFT"); // 3월 기간 행에 공유 잠금
+            insertLine(id, 1, deposit, 1_000, 0);
+            insertLine(id, 2, cash, 0, 1_000);
+
+            // 아직 커밋 전 — 이때 마감하려는 쪽은 기다려야 한다. 테스트에서는 0.3초만 기다리고 포기하게 한다.
+            assertThatThrownBy(() -> another.executeWithoutResult(s2 -> {
+                jdbc.sql("set local lock_timeout = '300ms'").update();
+                closeMarch();
+            })).rootCause().isInstanceOfSatisfying(SQLException.class,
+                    e -> assertThat(e.getSQLState()).isEqualTo("55P03")); // lock_not_available
+        });
+
+        closeMarch(); // 전표가 커밋된 뒤에는 마감된다
+        assertThat(countEntries(905)).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("역분개 전표는 SQL로도 원전표보다 앞 날짜이거나 임시 전표를 가리킬 수 없다")
+    void reversalTargetIsGuarded() {
+        Long posted = journal.post(companyId, draftByApp("2026-03-10", 1_000).id(), userId).id();
+        Long draft = draftByApp("2026-03-10", 500).id();
+
+        assertThatThrownBy(() -> tx.executeWithoutResult(s -> insertReversal("2026-03-09", 906, posted)))
+                .hasStackTraceContaining("원전표일(2026-03-10)보다 빠를 수 없습니다");
+        assertThatThrownBy(() -> tx.executeWithoutResult(s -> insertReversal("2026-03-10", 907, draft)))
+                .hasStackTraceContaining("전기된 일반 전표여야 합니다");
+    }
+
+    private void insertReversal(String date, int no, Long originalId) {
+        jdbc.sql("""
+                        insert into journal_entry (company_id, fiscal_year_id, entry_date, entry_no, entry_type, status,
+                                                   created_by, reversal_of_id)
+                        values (?, ?, ?, ?, 'REVERSAL', 'DRAFT', ?, ?)
+                        """)
+                .params(companyId, fiscalYearId, LocalDate.parse(date), no, userId, originalId)
+                .update();
+    }
+
+    private void closeMarch() {
+        jdbc.sql("update fiscal_period set status = 'CLOSED' where fiscal_year_id = ? and period_no = 3").param(fiscalYearId).update();
     }
 
     private long countEntries(int entryNo) {
