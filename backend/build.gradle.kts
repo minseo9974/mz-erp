@@ -26,6 +26,10 @@ dependencies {
 	implementation("org.springframework.boot:spring-boot-starter-webmvc")
 	implementation("org.flywaydb:flyway-database-postgresql")
 	implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:3.2.0")
+	// 시나리오·과정 콘텐츠(TOML) 읽기 — ADR-0015
+	implementation("tools.jackson.dataformat:jackson-dataformat-toml")
+	// 집계 조회는 MyBatis SQL (ADR-0005)
+	implementation("org.mybatis.spring.boot:mybatis-spring-boot-starter:4.0.0")
 	runtimeOnly("org.postgresql:postgresql")
 
 	testImplementation("org.springframework.boot:spring-boot-starter-actuator-test")
@@ -45,6 +49,14 @@ dependencies {
 tasks.processResources {
 	from("../data/seed") {
 		into("seed")
+	}
+	// 시나리오 거래와 정답 — 리플레이어와 골든 테스트가 읽는다
+	from("../data/scenario") {
+		into("scenario")
+	}
+	// 과정 콘텐츠(미션) — ADR-0015
+	from("../data/course") {
+		into("course")
 	}
 }
 

@@ -1,0 +1,329 @@
+{
+  "entries": {
+    "opening": 1,
+    "transactions": 38,
+    "closing": 9
+  },
+  "trialBalance": [
+    {
+      "code": "101",
+      "debit": 5000000,
+      "credit": 570000
+    },
+    {
+      "code": "103",
+      "debit": 117601520,
+      "credit": 96550000
+    },
+    {
+      "code": "108",
+      "debit": 129500000,
+      "credit": 83000000
+    },
+    {
+      "code": "109",
+      "debit": 200000,
+      "credit": 665000
+    },
+    {
+      "code": "110",
+      "debit": 10000000,
+      "credit": 5000000
+    },
+    {
+      "code": "111",
+      "debit": 0,
+      "credit": 50000
+    },
+    {
+      "code": "133",
+      "debit": 1100000,
+      "credit": 0
+    },
+    {
+      "code": "135",
+      "debit": 3110000,
+      "credit": 3110000
+    },
+    {
+      "code": "136",
+      "debit": 518480,
+      "credit": 518480
+    },
+    {
+      "code": "150",
+      "debit": 78900000,
+      "credit": 68900000
+    },
+    {
+      "code": "153",
+      "debit": 32000000,
+      "credit": 29000000
+    },
+    {
+      "code": "206",
+      "debit": 50000000,
+      "credit": 0
+    },
+    {
+      "code": "207",
+      "debit": 0,
+      "credit": 15000000
+    },
+    {
+      "code": "212",
+      "debit": 8000000,
+      "credit": 0
+    },
+    {
+      "code": "213",
+      "debit": 0,
+      "credit": 3400000
+    },
+    {
+      "code": "232",
+      "debit": 10000000,
+      "credit": 0
+    },
+    {
+      "code": "251",
+      "debit": 18600000,
+      "credit": 37800000
+    },
+    {
+      "code": "252",
+      "debit": 3000000,
+      "credit": 8000000
+    },
+    {
+      "code": "253",
+      "debit": 4030000,
+      "credit": 4030000
+    },
+    {
+      "code": "254",
+      "debit": 2650000,
+      "credit": 5050000
+    },
+    {
+      "code": "255",
+      "debit": 9500000,
+      "credit": 9500000
+    },
+    {
+      "code": "260",
+      "debit": 0,
+      "credit": 10000000
+    },
+    {
+      "code": "261",
+      "debit": 3790000,
+      "credit": 6771520
+    },
+    {
+      "code": "262",
+      "debit": 0,
+      "credit": 300000
+    },
+    {
+      "code": "293",
+      "debit": 5000000,
+      "credit": 20000000
+    },
+    {
+      "code": "331",
+      "debit": 0,
+      "credit": 50000000
+    },
+    {
+      "code": "375",
+      "debit": 0,
+      "credit": 29000000
+    },
+    {
+      "code": "404",
+      "debit": 0,
+      "credit": 105000000
+    },
+    {
+      "code": "455",
+      "debit": 68900000,
+      "credit": 0
+    },
+    {
+      "code": "501",
+      "debit": 29000000,
+      "credit": 29000000
+    },
+    {
+      "code": "504",
+      "debit": 36000000,
+      "credit": 36000000
+    },
+    {
+      "code": "518",
+      "debit": 5000000,
+      "credit": 5000000
+    },
+    {
+      "code": "520",
+      "debit": 800000,
+      "credit": 800000
+    },
+    {
+      "code": "521",
+      "debit": 1200000,
+      "credit": 1200000
+    },
+    {
+      "code": "801",
+      "debit": 24000000,
+      "credit": 0
+    },
+    {
+      "code": "812",
+      "debit": 450000,
+      "credit": 0
+    },
+    {
+      "code": "813",
+      "debit": 440000,
+      "credit": 0
+    },
+    {
+      "code": "814",
+      "debit": 360000,
+      "credit": 0
+    },
+    {
+      "code": "818",
+      "debit": 1400000,
+      "credit": 0
+    },
+    {
+      "code": "826",
+      "debit": 120000,
+      "credit": 0
+    },
+    {
+      "code": "830",
+      "debit": 300000,
+      "credit": 0
+    },
+    {
+      "code": "835",
+      "debit": 765000,
+      "credit": 0
+    },
+    {
+      "code": "901",
+      "debit": 0,
+      "credit": 120000
+    },
+    {
+      "code": "951",
+      "debit": 1200000,
+      "credit": 0
+    },
+    {
+      "code": "998",
+      "debit": 900000,
+      "credit": 0
+    }
+  ],
+  "partnerBalances": [
+    {
+      "account": "108",
+      "partner": "00101",
+      "debit": 93500000,
+      "credit": 75000000
+    },
+    {
+      "account": "108",
+      "partner": "00102",
+      "debit": 30500000,
+      "credit": 8000000
+    },
+    {
+      "account": "108",
+      "partner": "00501",
+      "debit": 5500000,
+      "credit": 0
+    },
+    {
+      "account": "110",
+      "partner": "00101",
+      "debit": 5000000,
+      "credit": 5000000
+    },
+    {
+      "account": "110",
+      "partner": "00102",
+      "debit": 5000000,
+      "credit": 0
+    },
+    {
+      "account": "232",
+      "partner": "00302",
+      "debit": 10000000,
+      "credit": 0
+    },
+    {
+      "account": "251",
+      "partner": "00201",
+      "debit": 7000000,
+      "credit": 26200000
+    },
+    {
+      "account": "251",
+      "partner": "00202",
+      "debit": 11600000,
+      "credit": 11600000
+    },
+    {
+      "account": "252",
+      "partner": "00201",
+      "debit": 3000000,
+      "credit": 8000000
+    },
+    {
+      "account": "253",
+      "partner": "00301",
+      "debit": 1500000,
+      "credit": 1500000
+    },
+    {
+      "account": "253",
+      "partner": "00501",
+      "debit": 330000,
+      "credit": 330000
+    },
+    {
+      "account": "253",
+      "partner": "00603",
+      "debit": 2200000,
+      "credit": 2200000
+    },
+    {
+      "account": "260",
+      "partner": "00401",
+      "debit": 0,
+      "credit": 10000000
+    },
+    {
+      "account": "293",
+      "partner": "00402",
+      "debit": 5000000,
+      "credit": 20000000
+    }
+  ],
+  "totals": {
+    "sales": 105000000,
+    "costOfGoodsSold": 68900000,
+    "operatingIncome": 8265000,
+    "netIncome": 6285000,
+    "assets": 140166520,
+    "liabilities": 54881520,
+    "equity": 85285000
+  }
+}

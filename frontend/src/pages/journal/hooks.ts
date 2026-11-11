@@ -15,6 +15,8 @@ export function useJournalEntries(companyId: number, from: string, to: string) {
   return useQuery({
     queryKey: journalKeys.range(companyId, from, to),
     queryFn: () => api<JournalEntry[]>(`${base(companyId)}?from=${from}&to=${to}`),
+    // 기초잔액 전표는 전기분 재무상태표 화면에서 다룬다 (일반전표 화면에서 고치면 재무상태표 계정 규칙을 건너뛴다)
+    select: (list) => list.filter((e) => e.entryType !== 'OPENING'),
   })
 }
 

@@ -39,6 +39,12 @@ class ArchitectureTest {
             noClasses().that().resideInAnyPackage("com.mzerp.master..", "com.mzerp.identity..", "com.mzerp.common..")
                     .should().dependOnClassesThat().resideInAPackage("com.mzerp.journal..");
 
+    /** ERP는 실습 층을 모른다: 실습 층이 ERP의 공개 서비스를 쓰는 한 방향만 허용 (ADR-0012) */
+    @ArchTest
+    static final ArchRule erpDoesNotKnowLearning =
+            noClasses().that().resideInAnyPackage("com.mzerp.common..", "com.mzerp.identity..", "com.mzerp.master..", "com.mzerp.journal..", "com.mzerp.ledger..")
+                    .should().dependOnClassesThat().resideInAPackage("com.mzerp.learning..");
+
     /** 전표 라인은 전표(JournalEntry)를 통해서만 만든다 — 차대 검증을 우회하지 못하게 */
     @ArchTest
     static final ArchRule linesAreCreatedOnlyThroughEntry =

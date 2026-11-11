@@ -434,6 +434,7 @@ export function EntryEditor(props: Props) {
               역분개 일자
               <input
                 type="date"
+                min={entry?.entryDate}
                 value={reverseForm.date}
                 onChange={(e) => setReverseForm({ ...reverseForm, date: e.target.value })}
               />

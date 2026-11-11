@@ -321,6 +321,17 @@ class JournalApiTest extends IntegrationTest {
                     .andExpect(status().isCreated())
                     .andExpect(jsonPath("$.entryDate").value("2026-04-01"));
         }
+
+        @Test
+        @DisplayName("역분개일이 원전표일보다 빠르면 422 REVERSAL_DATE_INVALID — 취소가 원거래보다 먼저 나올 수 없다")
+        void reversalCannotPrecedeOriginal() throws Exception {
+            Long original = postedWrongEntry(); // 12월 5일
+
+            reverse(original, "{\"reversalDate\":\"2026-12-04\"}")
+                    .andExpect(status().isUnprocessableContent())
+                    .andExpect(jsonPath("$.code").value("REVERSAL_DATE_INVALID"));
+            reverse(original, "{\"reversalDate\":\"2026-12-05\"}").andExpect(status().isCreated()); // 같은 날은 된다
+        }
     }
 
     // ------------------------------------------------------------------ 조회

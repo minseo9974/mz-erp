@@ -17,6 +17,9 @@ public interface JournalEntryRepository extends JpaRepository<JournalEntry, Long
     List<JournalEntry> findByCompanyIdAndEntryDateBetweenOrderByEntryDateAscEntryNoAsc(
             Long companyId, LocalDate from, LocalDate to);
 
+    @EntityGraph(attributePaths = "lines")
+    List<JournalEntry> findByCompanyIdAndFiscalYearIdAndEntryType(Long companyId, Long fiscalYearId, EntryType entryType);
+
     List<JournalEntry> findByReversalOfIdIn(Collection<Long> reversalOfIds);
 
     boolean existsByReversalOfId(Long reversalOfId);

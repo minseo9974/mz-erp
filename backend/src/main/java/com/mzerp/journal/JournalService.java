@@ -67,13 +67,27 @@ public class JournalService {
 
     // ------------------------------------------------------------------ 쓰기
 
+    /** 일반전표 작성 (화면·API의 기본 경로). */
     @Transactional
     public EntryView create(Long companyId, Long userId, EntryInput input) {
+        return create(companyId, userId, EntryType.GENERAL, input);
+    }
+
+    /**
+     * 유형을 지정해 작성한다. 화면 밖에서 전표를 만드는 경로(시나리오 재생, 이후 매입매출·결산 모듈)용.
+     * 기초잔액(OPENING)과 역분개(REVERSAL)는 규칙이 더 있어서 전용 경로로만 만든다
+     * ({@link OpeningBalanceService}, {@link #reverse}).
+     */
+    @Transactional
+    public EntryView create(Long companyId, Long userId, EntryType type, EntryInput input) {
+        if (type == EntryType.OPENING || type == EntryType.REVERSAL) {
+            throw new IllegalArgumentException(type + " 전표는 전용 경로로만 만듭니다");
+        }
         List<JournalEntry.LineDraft> drafts = resolveLines(companyId, input.lines());
         FiscalCalendar.OpenPeriod period = calendar.requireOpenPeriod(companyId, input.entryDate());
         int entryNo = numbers.next(companyId, input.entryDate());
         JournalEntry entry = JournalEntry.draft(companyId, period.fiscalYearId(), input.entryDate(), entryNo,
-                EntryType.GENERAL, input.description(), userId, drafts);
+                type, input.description(), userId, drafts);
         return view(entries.save(entry));
     }
 
@@ -85,6 +99,10 @@ public class JournalService {
                     "요청 version " + expectedVersion + ", 현재 version " + entry.getVersion());
         }
         entry.requireDraft();
+        if (entry.getEntryType() != EntryType.GENERAL) {
+            // 기초잔액 전표를 여기서 고치면 "재무상태표 계정만"이라는 규칙을 건너뛰게 된다
+            throw new ApiException(ErrorCode.VALIDATION_FAILED, "일반전표 화면에서는 일반전표만 수정할 수 있습니다");
+        }
         List<JournalEntry.LineDraft> drafts = resolveLines(companyId, input.lines());
         FiscalCalendar.OpenPeriod period = calendar.requireOpenPeriod(companyId, input.entryDate());
         // 날짜가 바뀌면 그 날짜의 새 번호를 받는다 (번호는 일자별 연번)
@@ -124,6 +142,7 @@ public class JournalService {
     /**
      * 역분개: 원전표와 차대가 반대인 전표를 만들어 바로 전기한다 (회계 노트 02 §5).
      * @param reversalDate 비우면 원전표 날짜. 원전표의 달이 마감됐으면 정정 날짜를 지정해야 한다.
+     *                     원전표일보다 빠를 수 없다 (REVERSAL_DATE_INVALID).
      */
     @Transactional
     public EntryView reverse(Long companyId, Long entryId, Long userId, LocalDate reversalDate, String reason) {
@@ -137,6 +156,11 @@ public class JournalService {
                     "전표 " + original.getEntryDate() + "-" + original.getEntryNo() + "은(는) 이미 역분개되었습니다");
         }
         LocalDate date = reversalDate != null ? reversalDate : original.getEntryDate();
+        // 취소가 원거래보다 먼저 장부에 나오면 그 사이 기간의 잔액이 실제와 달라진다
+        if (date.isBefore(original.getEntryDate())) {
+            throw new ApiException(ErrorCode.REVERSAL_DATE_INVALID,
+                    "원전표일 " + original.getEntryDate() + ", 역분개일 " + date);
+        }
         FiscalCalendar.OpenPeriod period = calendar.requireOpenPeriod(companyId, date);
         int entryNo = numbers.next(companyId, date);
 
@@ -179,7 +203,7 @@ public class JournalService {
      * - 계정: 이 회사의 계정, 사용 중, 시스템 계정 아님 (ACCOUNT_NOT_POSTABLE)
      * - 거래처: 거래처 필수 계정이면 반드시 (PARTNER_REQUIRED), 입력했다면 이 회사의 거래처
      */
-    private List<JournalEntry.LineDraft> resolveLines(Long companyId, List<LineInput> inputs) {
+    List<JournalEntry.LineDraft> resolveLines(Long companyId, List<LineInput> inputs) {
         if (inputs == null) {
             return List.of();
         }
@@ -213,7 +237,7 @@ public class JournalService {
         return drafts;
     }
 
-    private EntryView view(JournalEntry entry) {
+    EntryView view(JournalEntry entry) {
         return views(entry.getCompanyId(), List.of(entry)).getFirst();
     }
 

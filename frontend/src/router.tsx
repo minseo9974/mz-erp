@@ -24,6 +24,10 @@ export const router = createBrowserRouter([
           { path: 'partners', lazy: async () => ({ Component: (await import('./pages/PartnersPage')).PartnersPage }) },
           { path: 'fiscal-years', element: <FiscalYearsPage /> },
           {
+            path: 'opening-balance',
+            lazy: async () => ({ Component: (await import('./pages/opening/OpeningBalancePage')).OpeningBalancePage }),
+          },
+          {
             path: 'journal-entries',
             lazy: async () => ({ Component: (await import('./pages/journal/JournalEntryPage')).JournalEntryPage }),
           },
