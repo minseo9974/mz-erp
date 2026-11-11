@@ -1,9 +1,11 @@
 # MZ-ERP
 
-전표 입력부터 장부, 결산, 재무제표, 부가세, 차기이월까지 **회계 흐름 전체를 직접 구현하는 회계 ERP**입니다.
-전산회계 1급 실무 범위(제조업 법인)를 기준으로 만들고, 결과 재무제표가 수기 계산 정답과 일치하는지 테스트로 검증합니다.
+**회계팀 신입이 실무를 처음부터 끝까지 연습하는 사이트**입니다. 이론은 배웠지만 실무는 처음인 사람이 증빙을 보고 전표를 치고, 장부·부가세·결산을 거쳐 재무제표까지 직접 만들어 봅니다.
 
-> 상태: **2단계 — 전표 엔진** 진행 중 · 0단계 완료 · 1단계는 운영 서버 연결만 남음
+바닥은 전표 입력부터 장부, 결산, 재무제표, 부가세, 차기이월까지 **회계 흐름 전체를 직접 구현한 회계 ERP**이고, 그 위에 과정·미션·채점을 얹습니다 ([설계](docs/design/training-site.md)).
+전산회계 1급 실무 범위(제조업 법인)를 기준으로 만들고, 결과 재무제표가 검산한 정답과 일치하는지 테스트로 검증합니다.
+
+> 상태: **2단계 — 전표 엔진** 마무리 중 → 다음은 **L1 실습 세로 조각**(0~1장) · 아직 실습 화면은 없고 ERP 화면만 있습니다
 
 [![CI](https://github.com/minseo9974/mz-erp/actions/workflows/ci.yml/badge.svg)](https://github.com/minseo9974/mz-erp/actions/workflows/ci.yml)
 
@@ -30,6 +32,7 @@ cd frontend && npm install && npm run dev   # http://localhost:5173 (admin / adm
 | 경로 | 내용 |
 | --- | --- |
 | [docs/00-overview.md](docs/00-overview.md) | 목표, 범위, 단계별 일정 요약 |
+| [docs/design/training-site.md](docs/design/training-site.md) | 실습 사이트 설계: 대상, 커리큘럼, 미션, 채점, 구조 |
 | [docs/design/account-chart.md](docs/design/account-chart.md) | 계정과목 체계 |
 | [docs/design/erd.md](docs/design/erd.md) | 데이터 모델(ERD)과 무결성 규칙 |
 | [docs/design/api.md](docs/design/api.md) | REST API 명세 초안 |
