@@ -57,12 +57,12 @@ code,name,category,subgroup,normal_balance,contra_of,requires_partner,statement,
 404,제품매출,REVENUE,매출,CREDIT,,false,IS,false
 455,제품매출원가,EXPENSE,매출원가,DEBIT,,false,IS,false
 501,원재료비,EXPENSE,제조원가,DEBIT,,false,MC,false
-503,급여,EXPENSE,제조원가,DEBIT,,false,MC,false
+504,임금,EXPENSE,제조원가,DEBIT,,false,MC,false
 511,복리후생비,EXPENSE,제조원가,DEBIT,,false,MC,false
 515,가스수도료,EXPENSE,제조원가,DEBIT,,false,MC,false
 516,전력비,EXPENSE,제조원가,DEBIT,,false,MC,false
 518,감가상각비,EXPENSE,제조원가,DEBIT,,false,MC,false
-519,지급임차료,EXPENSE,제조원가,DEBIT,,false,MC,false
+519,임차료,EXPENSE,제조원가,DEBIT,,false,MC,false
 520,수선비,EXPENSE,제조원가,DEBIT,,false,MC,false
 521,보험료,EXPENSE,제조원가,DEBIT,,false,MC,false
 530,소모품비,EXPENSE,제조원가,DEBIT,,false,MC,false
@@ -74,7 +74,7 @@ code,name,category,subgroup,normal_balance,contra_of,requires_partner,statement,
 815,수도광열비,EXPENSE,판매비와관리비,DEBIT,,false,IS,false
 817,세금과공과,EXPENSE,판매비와관리비,DEBIT,,false,IS,false
 818,감가상각비,EXPENSE,판매비와관리비,DEBIT,,false,IS,false
-819,지급임차료,EXPENSE,판매비와관리비,DEBIT,,false,IS,false
+819,임차료,EXPENSE,판매비와관리비,DEBIT,,false,IS,false
 821,보험료,EXPENSE,판매비와관리비,DEBIT,,false,IS,false
 822,차량유지비,EXPENSE,판매비와관리비,DEBIT,,false,IS,false
 826,도서인쇄비,EXPENSE,판매비와관리비,DEBIT,,false,IS,false
@@ -87,8 +87,8 @@ code,name,category,subgroup,normal_balance,contra_of,requires_partner,statement,
 906,단기매매증권처분이익,REVENUE,영업외수익,CREDIT,,false,IS,false
 914,유형자산처분이익,REVENUE,영업외수익,CREDIT,,false,IS,false
 930,잡이익,REVENUE,영업외수익,CREDIT,,false,IS,false
-931,이자비용,EXPENSE,영업외비용,DEBIT,,false,IS,false
-933,기부금,EXPENSE,영업외비용,DEBIT,,false,IS,false
+951,이자비용,EXPENSE,영업외비용,DEBIT,,false,IS,false
+953,기부금,EXPENSE,영업외비용,DEBIT,,false,IS,false
 954,기타의대손상각비,EXPENSE,영업외비용,DEBIT,,false,IS,false
 970,유형자산처분손실,EXPENSE,영업외비용,DEBIT,,false,IS,false
 980,잡손실,EXPENSE,영업외비용,DEBIT,,false,IS,false

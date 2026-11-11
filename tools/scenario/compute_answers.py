@@ -354,7 +354,7 @@ def main() -> int:
     check(raw_begin + raw_purchase - raw_end == mc.get("501", 0),
           f"원재료비 = 기초 {raw_begin:,} + 매입 {raw_purchase:,} − 기말 {raw_end:,} = {mc.get('501', 0):,}")
     check(full.balance("153") == raw_end, f"원재료 장부잔액 = 기말 실사 {raw_end:,}")
-    labor = [c for c in mc_codes if c in ("503", "505", "508")]
+    labor = [c for c in mc_codes if c in ("504", "505", "508")]
     overhead = [c for c in mc_codes if c not in labor and c != "501"]
     total_mfg = sum(mc.values())
     wip_begin, wip_end = opening.debit("169"), facts["ending_wip"]

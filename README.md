@@ -36,6 +36,7 @@ cd frontend && npm install && npm run dev   # http://localhost:5173 (admin / adm
 | [docs/design/screens.md](docs/design/screens.md) | 화면 목록과 와이어프레임 |
 | [docs/scenario/company.md](docs/scenario/company.md) | 테스트용 시나리오 회사와 기초잔액 |
 | [docs/scenario/answers-2026.md](docs/scenario/answers-2026.md) | 시나리오 정답 재무제표 (골든 테스트 기준) |
+| [docs/scenario/verification-2026.md](docs/scenario/verification-2026.md) | 정답 검산 기록 (손으로 따라가는 계산 과정) |
 | [data/](data/) | 계정 시드, 시나리오 거래 원본(TOML) |
 | [tools/scenario/](tools/scenario/) | 정답 생성·검증 스크립트 (`py tools/scenario/compute_answers.py`) |
 | [docs/adr/](docs/adr/) | 설계 결정 기록(ADR) |

@@ -38,8 +38,8 @@
 - [x] 계정 시드 데이터 — [data/seed/accounts.csv](../data/seed/accounts.csv)
 - [x] 시나리오 회사 1년치 거래 38건 + 결산정리 9건 — [data/scenario/mz-electronics-2026.toml](../data/scenario/mz-electronics-2026.toml)
 - [x] 정답 생성·검증 스크립트 — [tools/scenario/compute_answers.py](../tools/scenario/compute_answers.py) → [scenario/answers-2026.md](scenario/answers-2026.md)
-- [ ] 정답을 손으로 한 번 검산 (전산회계 공부 겸)
-- [ ] 계정코드·매입매출 유형 번호를 실제 전산회계 프로그램(KcLep)과 대조
+- [x] 정답 검산 — 생성기와 별개로 분개 48장 검토 + 재집계, 불일치 없음 ([scenario/verification-2026.md](scenario/verification-2026.md)). 직접 손으로 따라가 보는 것은 공부용으로 남겨 둠
+- [x] 계정코드·매입매출 유형 번호를 KcLep 교재·코드표와 대조 — 4건 수정 ([account-chart.md](design/account-chart.md#kclep-대조-기록-2026-11-10)). 400 손익·501 원재료비는 시험 프로그램에서 직접 확인 필요
 - [x] API 명세 초안 — [design/api.md](design/api.md)
 - [x] 화면 목록과 와이어프레임 — [design/screens.md](design/screens.md)
 
