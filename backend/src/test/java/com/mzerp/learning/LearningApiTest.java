@@ -118,7 +118,11 @@ class LearningApiTest extends IntegrationTest {
         mvc.perform(get("/api/v1/learning/enrollments/" + enrollmentId).session(learner))
                 .andExpect(jsonPath("$.courseTitle").value("회계팀 첫 1년"))
                 .andExpect(jsonPath("$.chapters[0].missions", hasSize(6)))
-                .andExpect(jsonPath("$.chapters[0].missions[0].status").value("NOT_STARTED"));
+                .andExpect(jsonPath("$.chapters[0].missions[0].status").value("NOT_STARTED"))
+                .andExpect(jsonPath("$.chapters[0].missions[0].date").value("2026-01-10"));
+        mvc.perform(get("/api/v1/learning/enrollments").session(learner))
+                .andExpect(jsonPath("$", hasSize(1)))
+                .andExpect(jsonPath("$[0].id").value(enrollmentId));
         mvc.perform(get("/api/v1/me").session(learner))
                 .andExpect(jsonPath("$.companies", hasSize(1)))
                 .andExpect(jsonPath("$.companies[0].companyId").value(companyId))
@@ -222,6 +226,8 @@ class LearningApiTest extends IntegrationTest {
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("MISSION_IN_PROGRESS"));
         assertThat(start("withholding-tax-payment")).isEqualTo(attemptId);
+        mvc.perform(get("/api/v1/learning/enrollments/" + enrollmentId).session(learner))
+                .andExpect(jsonPath("$.chapters[0].missions[0].attemptId").value(attemptId));
     }
 
     @Test

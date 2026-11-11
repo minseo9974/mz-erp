@@ -11,7 +11,7 @@ export function LoginPage() {
   const login = useLogin()
   const navigate = useNavigate()
   const location = useLocation()
-  const from = (location.state as { from?: string } | null)?.from ?? '/companies'
+  const from = (location.state as { from?: string } | null)?.from ?? '/desk'
 
   function submit(e: FormEvent) {
     e.preventDefault()
@@ -25,7 +25,7 @@ export function LoginPage() {
       <form className="card" onSubmit={submit}>
         <div>
           <h1>MZ-ERP</h1>
-          <p className="muted">회계 흐름 전체를 직접 구현하는 회계 ERP</p>
+          <p className="muted">회계팀 신입을 위한 실무 실습 — 직접 구현한 회계 ERP 위에서</p>
         </div>
         <label>
           아이디

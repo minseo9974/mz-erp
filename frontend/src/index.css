@@ -504,3 +504,182 @@ label.inline {
   width: 36px;
   text-align: center;
 }
+
+/* ---------- 실습: 내 책상 */
+.desk {
+  min-height: 100vh;
+}
+
+.desk-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  height: 48px;
+  padding: 0 16px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+
+.desk-header .logo {
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.desk-header .spacer {
+  flex: 1;
+}
+
+.desk-main {
+  display: grid;
+  gap: 16px;
+  width: min(760px, 100%);
+  margin: 0 auto;
+  padding: 24px 16px;
+}
+
+.desk-main .card {
+  display: grid;
+  gap: 12px;
+}
+
+.desk-main p {
+  margin: 0;
+  line-height: 1.6;
+}
+
+.desk-points {
+  margin: 0;
+  padding-left: 18px;
+  line-height: 1.8;
+}
+
+.memo {
+  padding: 12px 14px;
+  border-left: 3px solid var(--accent);
+  background: var(--accent-soft);
+  border-radius: 0 6px 6px 0;
+}
+
+.memo p {
+  margin: 6px 0 0;
+  line-height: 1.6;
+}
+
+.chapter-title {
+  margin: 4px 0 6px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.mission-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.mission {
+  display: grid;
+  grid-template-columns: 20px 48px 1fr auto;
+  gap: 8px;
+  align-items: center;
+  padding: 7px 4px;
+  border-top: 1px solid var(--border);
+}
+
+.mission .status {
+  font-size: 12px;
+}
+
+.mission.passed .mark {
+  color: var(--ok);
+}
+
+.mission.in-progress {
+  font-weight: 600;
+}
+
+.mission.in-progress .mark {
+  color: var(--accent);
+}
+
+.mission.not-started {
+  color: var(--muted);
+}
+
+/* ---------- 실습: 미션 패널 (실습 회사의 ERP 화면 옆) */
+.app.with-mission {
+  grid-template-columns: 200px 1fr 320px;
+}
+
+.mission-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  background: var(--surface);
+  border-left: 1px solid var(--border);
+  overflow: auto;
+}
+
+.mission-panel h2,
+.mission-panel p {
+  margin: 0;
+}
+
+.mission-panel p {
+  line-height: 1.6;
+}
+
+.mission-panel .hints {
+  margin: 0;
+  padding: 10px 10px 10px 28px;
+  border: 1px dashed var(--border);
+  border-radius: 6px;
+  line-height: 1.6;
+}
+
+.mission-panel .alert ul {
+  margin: 6px 0 0;
+  padding-left: 18px;
+}
+
+.mission-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.mission-foot {
+  font-size: 12px;
+}
+
+/* 좁은 화면에서는 패널을 메뉴·본문 위로 올린다 */
+@media (max-width: 1100px) {
+  .app.with-mission {
+    grid-template-columns: 200px 1fr;
+    grid-template-rows: 48px auto 1fr;
+  }
+
+  .app.with-mission .app-header {
+    order: -2;
+  }
+
+  .app.with-mission .mission-panel {
+    order: -1;
+    grid-column: 1 / -1;
+    border-left: 0;
+    border-bottom: 1px solid var(--border);
+    /* 아래로 내려가 전표를 쓰는 동안에도 결재 결과가 보이게 위에 붙여 둔다 */
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    max-height: 50vh;
+  }
+}
+
+@media (max-width: 720px) {
+  .app.with-mission {
+    grid-template-columns: 1fr;
+    grid-template-rows: 48px auto auto 1fr;
+  }
+}
