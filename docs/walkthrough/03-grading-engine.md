@@ -62,6 +62,7 @@
 | `NO_ENTRY` | 실제 변화가 비어 있다 | `nothingEntered` |
 | `SIDE_SWAPPED` | 실제 변화의 부호를 전부 뒤집으면 기대와 같다 | `sidesSwapped` |
 | `WRONG_PARTNER` | 거래처를 무시하고 계정별로 합치면 같다 | `wrongPartner` |
+| (통과) | 정답이 거래처를 따지지 않는 계정(보통예금)에 거래처를 붙였다 — 틀린 처리가 아니므로 떼고 본다 (`ignoreExtraPartners`) | `extraPartnerOnAccountWithoutPartnerPasses` |
 | `WRONG_ACCOUNT` | 계정별 차이가 딱 두 개: 있어야 할 계정 하나가 없고, 없어야 할 계정 하나가 같은 금액으로 있다 | `wrongAccount` |
 | `WRONG_AMOUNT` | 바뀐 계정의 집합은 같고 금액만 다르다 | `wrongAmount` |
 | `UNEXPECTED_CHANGE` | 그 밖 | `unexpectedChange` |
@@ -87,7 +88,10 @@ List<Finding> findings = grade(mission, actual, companyId);
 - **왜 임시 전표를 더하나?** 실습자는 작성자라서 직접 전기하지 못한다. 그래서 "전기하면 이렇게 된다"를 먼저 계산해 채점하고, 맞을 때만 팀장이 전기한다. 틀린 전표가 장부에 들어가지 않는다
 - **baseline은 어디에?** `mission_attempt.baseline`에 JSON으로. ERP 테이블에 실습용 컬럼을 넣지 않기 위해서다 (ADR-0012)
 - **전기는 누가?** `journal.post(companyId, draftId, teamLead)` — 화면에서 승인자가 누르는 것과 같은 서비스. 그래서 마감 검사, DB 트리거를 그대로 거친다
-- **미션은 한 번에 하나** (`V5`의 부분 유니크 인덱스 + 서비스 검사). 두 미션의 변화가 섞이면 어느 미션의 것인지 가를 수 없다
+- **미션을 시작할 때 세 가지를 확인한다** (`start`). 채점이 "시작 이후의 변화"라서, 그 변화에 다른 것이 섞이면 안 되기 때문이다
+  - 한 번에 하나만 (`V5`의 부분 유니크 인덱스 + 서비스 검사) — 두 미션의 변화가 섞이면 어느 미션의 것인지 가를 수 없다 (`MISSION_IN_PROGRESS`)
+  - 과정 순서대로 — 뒤 미션은 앞 미션이 장부에 남긴 결과 위에서 푼다 (`MISSION_LOCKED`, 테스트 `missionsUnlockInOrder`)
+  - 남은 임시 전표가 없을 것 — 미션 밖에서 써 둔 전표가 이번 결재에 함께 올라가 전기되면 안 된다 (`MISSION_DRAFTS_LEFT`, `leftoverDraftsBlockStart`)
 - 제출할 때마다 `attempt_submission`에 통과 여부와 사유를 남긴다. 어떤 미션에서 어떤 오답이 많은지 볼 재료
 
 ## 5. 실습 회사와 팀장 — `SandboxFactory`

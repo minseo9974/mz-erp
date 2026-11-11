@@ -10,6 +10,10 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.LockModeType;
+import jakarta.persistence.PersistenceContext;
+
 import com.mzerp.common.error.ApiException;
 import com.mzerp.common.error.ErrorCode;
 import com.mzerp.common.money.Money;
@@ -36,6 +40,9 @@ public class JournalService {
     private final PartnerRepository partners;
     private final FiscalCalendar calendar;
     private final EntryNumberGenerator numbers;
+
+    @PersistenceContext
+    private EntityManager em;
 
     public JournalService(JournalEntryRepository entries, AccountRepository accounts, PartnerRepository partners,
                           FiscalCalendar calendar, EntryNumberGenerator numbers) {
@@ -110,7 +117,15 @@ public class JournalService {
                 ? entry.getEntryNo()
                 : numbers.next(companyId, input.entryDate());
         entry.replace(period.fiscalYearId(), input.entryDate(), entryNo, input.description(), drafts);
-        return view(entries.saveAndFlush(entry));
+        int before = entry.getVersion();
+        JournalEntry saved = entries.saveAndFlush(entry);
+        // 라인 목록은 전표의 "반대편"(mappedBy)이라 라인만 바뀌면 JPA가 version을 올리지 않는다.
+        // 그러면 같은 임시 전표를 두 사람이 동시에 고칠 때 나중 저장이 앞 저장을 조용히 덮어쓴다 → 그때만 강제로 올린다.
+        // 이미 다른 사람이 올렸으면 이 UPDATE가 0행이 되어 VERSION_CONFLICT(409)로 끝난다.
+        if (saved.getVersion() == before) {
+            em.lock(saved, LockModeType.PESSIMISTIC_FORCE_INCREMENT);
+        }
+        return view(saved);
     }
 
     @Transactional

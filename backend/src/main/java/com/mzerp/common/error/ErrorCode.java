@@ -31,6 +31,8 @@ public enum ErrorCode {
     // 실습 (docs/design/training-site.md)
     MISSION_IN_PROGRESS(HttpStatus.CONFLICT, "진행 중인 미션을 먼저 끝내세요"),
     MISSION_ALREADY_FINISHED(HttpStatus.CONFLICT, "이미 끝난 미션입니다"),
+    MISSION_LOCKED(HttpStatus.CONFLICT, "앞의 미션을 먼저 끝내세요"),
+    MISSION_DRAFTS_LEFT(HttpStatus.CONFLICT, "남아 있는 임시 전표를 먼저 정리하세요"),
     VERSION_CONFLICT(HttpStatus.CONFLICT, "다른 사용자가 먼저 수정했습니다. 새로고침 후 다시 시도하세요");
 
     private final HttpStatus status;

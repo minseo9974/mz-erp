@@ -54,6 +54,15 @@ class GraderTest {
     }
 
     @Test
+    @DisplayName("정답이 거래처를 따지지 않는 계정(보통예금)에 거래처를 붙여도 통과 — 틀린 처리가 아니다")
+    void extraPartnerOnAccountWithoutPartnerPasses() {
+        assertThat(grade("D 103 12000000 00101", "C 108 12000000 00101")).isEmpty();
+        // 거래처를 따지는 계정(외상매출금)은 여전히 거래처까지 맞아야 한다
+        assertThat(grade("D 103 12000000 00101", "C 108 12000000 00102")).extracting(Finding::type)
+                .containsExactly(FindingType.WRONG_PARTNER);
+    }
+
+    @Test
     @DisplayName("틀리게 넣었다가 반대로 상쇄하고 다시 넣어도 통과 — 정정 절차를 거친 답도 정답이다")
     void correctedByReversalPasses() {
         assertThat(grade(

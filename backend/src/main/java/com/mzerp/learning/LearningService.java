@@ -112,10 +112,18 @@ public class LearningService {
 
     // ------------------------------------------------------------------ 미션
 
-    /** 미션을 시작한다. 한 번에 하나만 진행할 수 있다 — 두 미션의 장부 변화가 섞이면 채점할 수 없다. */
+    /**
+     * 미션을 시작한다. 채점은 "시작 이후 장부의 변화"로 하므로, 그 변화에 다른 것이 섞이지 않게 세 가지를 확인한다.
+     * <ol>
+     *   <li>한 번에 하나만 — 두 미션의 변화가 섞이면 어느 미션의 것인지 가를 수 없다</li>
+     *   <li>과정 순서대로 — 뒤 미션은 앞 미션이 장부에 남긴 결과(예: 외상 매출 → 그 대금 회수) 위에서 풀게 된다</li>
+     *   <li>임시 전표가 남아 있지 않을 것 — 미션 밖에서 써 둔 전표가 이번 결재에 함께 올라가면 안 된다</li>
+     * </ol>
+     */
     @Transactional
     public AttemptView start(Long userId, Long enrollmentId, String missionKey) {
         Enrollment enrollment = load(userId, enrollmentId);
+        Course course = catalog.get(enrollment.getCourseKey());
         Course.Mission mission = mission(enrollment, missionKey);
 
         var existing = attempts.findByEnrollmentIdAndMissionKey(enrollmentId, mission.key());
@@ -127,6 +135,21 @@ public class LearningService {
             throw new ApiException(ErrorCode.MISSION_IN_PROGRESS,
                     "'" + mission(enrollment, other.getMissionKey()).title() + "' 미션이 진행 중입니다");
         });
+        Map<String, MissionAttempt.Status> done = attempts.findByEnrollmentId(enrollmentId).stream()
+                .collect(Collectors.toMap(MissionAttempt::getMissionKey, MissionAttempt::getStatus));
+        course.missions().stream()
+                .takeWhile(m -> !m.key().equals(mission.key()))
+                .filter(m -> !done.containsKey(m.key()))
+                .findFirst()
+                .ifPresent(previous -> {
+                    throw new ApiException(ErrorCode.MISSION_LOCKED, "'" + previous.title() + "' 미션을 먼저 끝내세요");
+                });
+        List<JournalService.EntryView> leftover = drafts(enrollment.getCompanyId(), course);
+        if (!leftover.isEmpty()) {
+            throw new ApiException(ErrorCode.MISSION_DRAFTS_LEFT, "임시 전표 " + leftover.size() + "장("
+                    + leftover.stream().map(d -> d.entryDate() + " " + d.entryNo()).collect(Collectors.joining(", "))
+                    + ")이 남아 있어요. 일반전표 입력 화면에서 지운 뒤 미션을 시작하세요");
+        }
         String baseline = JSON.writeValueAsString(Balances.encode(postedBalances(enrollment.getCompanyId())));
         return view(attempts.save(new MissionAttempt(enrollmentId, enrollment.getCompanyId(), mission.key(), baseline)), mission);
     }

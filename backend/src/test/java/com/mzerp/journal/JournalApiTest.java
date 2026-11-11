@@ -172,6 +172,23 @@ class JournalApiTest extends IntegrationTest {
         }
 
         @Test
+        @DisplayName("라인만 고쳐도 version이 오른다 — 같은 version으로 두 번 저장하면 두 번째는 409")
+        void editingOnlyLinesBumpsVersion() throws Exception {
+            Long id = createId(noteMaturity("2026-03-10"));
+            String linesOnly = "{\"version\":0,\"entryDate\":\"2026-03-10\",\"description\":\"받을어음 만기\",\"lines\":["
+                    + line("DEBIT", "103", null, 4_000_000) + "," + line("CREDIT", "110", "00101", 4_000_000) + "]}";
+
+            mvc.perform(put(base() + "/" + id).session(admin).with(xsrf()).contentType(MediaType.APPLICATION_JSON).content(linesOnly))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.version").value(1))
+                    .andExpect(jsonPath("$.debitTotal").value(4_000_000));
+            // 같은 화면을 열어 두었던 다른 사람이 version 0으로 저장 → 덮어쓰지 않고 거절
+            mvc.perform(put(base() + "/" + id).session(admin).with(xsrf()).contentType(MediaType.APPLICATION_JSON).content(linesOnly))
+                    .andExpect(status().isConflict())
+                    .andExpect(jsonPath("$.code").value("VERSION_CONFLICT"));
+        }
+
+        @Test
         @DisplayName("다른 사람이 먼저 고쳤으면(version 불일치) → 409 VERSION_CONFLICT")
         void versionConflict() throws Exception {
             Long id = createId(noteMaturity("2026-03-10"));

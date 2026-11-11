@@ -11,7 +11,8 @@ import org.springframework.boot.SpringApplication;
  * 로컬 개발용 실행기 — PostgreSQL 설치 없이 백엔드를 띄운다.
  * <pre>cd backend && ./gradlew bootTestRun</pre>
  * <ul>
- *   <li>임베디드 PostgreSQL 16을 포트 54329에 띄우고, 데이터는 backend/.local/pgdata 에 남긴다 (재시작해도 유지)</li>
+ *   <li>임베디드 PostgreSQL 16을 비어 있는 포트에 띄우고, 데이터는 backend/.local/pgdata 에 남긴다 (재시작해도 유지).
+ *       DB 도구로 붙고 싶으면 환경변수 MZERP_LOCAL_PG_PORT로 포트를 고정한다 (고정 포트는 IDE 등 다른 프로그램과 겹칠 수 있다)</li>
  *   <li>처음 실행하면 개발용 관리자 admin / admin1234 를 만든다 (운영과 무관, 이 클래스는 테스트 소스라 jar에 안 들어감)</li>
  *   <li>데이터를 초기화하려면 backend/.local 폴더를 지운다</li>
  * </ul>
@@ -24,11 +25,15 @@ public final class LocalDevApplication {
     public static void main(String[] args) throws IOException {
         Path dataDir = Path.of(".local", "pgdata").toAbsolutePath();
         Files.createDirectories(dataDir);
-        EmbeddedPostgres postgres = EmbeddedPostgres.builder()
-                .setPort(54329)
+        EmbeddedPostgres.Builder builder = EmbeddedPostgres.builder()
                 .setDataDirectory(dataDir)
-                .setCleanDataDirectory(false)
-                .start();
+                .setCleanDataDirectory(false);
+        String fixedPort = System.getenv("MZERP_LOCAL_PG_PORT");
+        if (fixedPort != null && !fixedPort.isBlank()) {
+            builder.setPort(Integer.parseInt(fixedPort.strip()));
+        }
+        EmbeddedPostgres postgres = builder.start();
+        System.out.println("[local-dev] 임베디드 PostgreSQL 포트: " + postgres.getPort());
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
             try {
                 postgres.close();
