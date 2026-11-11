@@ -172,6 +172,8 @@ select p.status into v_status from fiscal_period p join fiscal_year y on … for
 
 테스트 `periodCannotBeClosedWhileAnEntryIsBeingWritten`은 전표를 넣고 커밋하지 않은 채로 다른 커넥션에서 마감을 시도해, 0.3초 안에 잠금을 못 얻고 포기하는 것(SQLSTATE `55P03`)을 확인한다.
 
+**한 가지 더 — 라인만 고치면 version이 안 올랐다** (2026-11-11 검토에서 발견). `JournalEntry.lines`는 `mappedBy` 쪽이라 라인 목록만 바뀌면 JPA가 전표의 `@Version`을 올리지 않는다. 그러면 같은 임시 전표를 두 사람이 열어 두고 각자 금액만 고쳐 저장할 때 나중 저장이 앞 저장을 조용히 덮어쓴다. `JournalService.update`가 저장 후 version이 그대로면 `PESSIMISTIC_FORCE_INCREMENT`로 강제로 올린다 (테스트 `editingOnlyLinesBumpsVersion`).
+
 **남겨 둔 한계**: 역분개 전표의 라인이 원전표의 정확한 반대인지는 DB가 검사하지 않는다 (`JournalEntry.reversalOf`의 책임). 마감 시 그 달에 임시 전표가 남아 있으면 어떻게 할지는 5단계(마감 기능)에서 정한다.
 
 ## 6. 규칙 ↔ 코드 ↔ 테스트

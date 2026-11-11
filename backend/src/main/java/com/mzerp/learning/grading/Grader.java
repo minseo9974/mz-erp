@@ -47,8 +47,9 @@ public final class Grader {
     }
 
     /** @return 비어 있으면 통과 */
-    public static List<Finding> grade(Map<Balances.Key, Long> expected, Map<Balances.Key, Long> actual,
+    public static List<Finding> grade(Map<Balances.Key, Long> expected, Map<Balances.Key, Long> rawActual,
                                       Map<String, AccountInfo> accounts) {
+        Map<Balances.Key, Long> actual = ignoreExtraPartners(expected, rawActual);
         if (actual.equals(expected)) {
             return List.of();
         }
@@ -99,6 +100,23 @@ public final class Grader {
             findings.add(new Finding(FindingType.UNEXPECTED_CHANGE, "장부의 변화가 이 거래와 맞지 않아요. 계정과 금액을 다시 확인하세요."));
         }
         return findings;
+    }
+
+    /**
+     * 정답에서 거래처를 따지지 않는 계정(예: 보통예금)에 실습자가 거래처를 붙였으면 거래처를 떼고 본다.
+     * 거래처를 적어 둔 것이 틀린 회계 처리는 아니기 때문이다. 정답이 거래처를 가진 계정(외상매출금 등)은 그대로 비교한다.
+     */
+    static Map<Balances.Key, Long> ignoreExtraPartners(Map<Balances.Key, Long> expected, Map<Balances.Key, Long> actual) {
+        Set<String> partnerAccounts = new TreeSet<>();
+        expected.keySet().stream().filter(k -> k.partnerCode() != null).forEach(k -> partnerAccounts.add(k.accountCode()));
+        Map<Balances.Key, Long> out = new java.util.TreeMap<>();
+        actual.forEach((k, v) -> {
+            Balances.Key key = k.partnerCode() == null || partnerAccounts.contains(k.accountCode())
+                    ? k : new Balances.Key(k.accountCode(), null);
+            out.merge(key, v, Long::sum);
+        });
+        out.values().removeIf(v -> v == 0);
+        return out;
     }
 
     /**

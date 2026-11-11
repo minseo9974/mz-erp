@@ -60,6 +60,14 @@ class LearningApiTest extends IntegrationTest {
         return ((Number) JsonPath.read(json, "$.id")).longValue();
     }
 
+    /** 앞 미션들을 "정답 보고 넘어가기"로 끝내 두고 그 미션을 시작한다 (미션은 과정 순서대로만 열린다). */
+    private Long startAfterSkipping(String missionKey, String... before) throws Exception {
+        for (String key : before) {
+            attemptAction(start(key), "reveal").andExpect(status().isOk());
+        }
+        return start(missionKey);
+    }
+
     private ResultActions attemptAction(Long attemptId, String action) throws Exception {
         return mvc.perform(post("/api/v1/learning/attempts/" + attemptId + "/" + action).session(learner).with(xsrf()));
     }
@@ -194,7 +202,7 @@ class LearningApiTest extends IntegrationTest {
     @Test
     @DisplayName("거래처를 잘못 고르면 WRONG_PARTNER — 미지급금을 케이렌탈이 아닌 다른 거래처로")
     void wrongPartnerIsExplained() throws Exception {
-        Long attemptId = start("accounts-payable-other-payment");
+        Long attemptId = startAfterSkipping("accounts-payable-other-payment", "withholding-tax-payment");
         createDraft(entryBody("2026-01-15", line("DEBIT", "253", "00603", 1_500_000), line("CREDIT", "103", null, 1_500_000)));
 
         attemptAction(attemptId, "submit")
@@ -217,9 +225,34 @@ class LearningApiTest extends IntegrationTest {
     }
 
     @Test
+    @DisplayName("미션은 과정 순서대로 열린다 — 앞 미션이 끝나지 않았으면 409 MISSION_LOCKED")
+    void missionsUnlockInOrder() throws Exception {
+        mvc.perform(post("/api/v1/learning/enrollments/" + enrollmentId + "/missions/accounts-payable-other-payment/start")
+                        .session(learner).with(xsrf()))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("MISSION_LOCKED"))
+                .andExpect(jsonPath("$.detail").value("'원천세 납부' 미션을 먼저 끝내세요"));
+    }
+
+    @Test
+    @DisplayName("미션 밖에서 써 둔 임시 전표가 있으면 미션을 시작할 수 없다 — 이번 결재에 섞여 올라가지 않게")
+    void leftoverDraftsBlockStart() throws Exception {
+        Long stray = createDraft(entryBody("2026-01-05", line("DEBIT", "101", null, 10_000), line("CREDIT", "103", null, 10_000)));
+
+        mvc.perform(post("/api/v1/learning/enrollments/" + enrollmentId + "/missions/withholding-tax-payment/start")
+                        .session(learner).with(xsrf()))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("MISSION_DRAFTS_LEFT"));
+
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete(entries() + "/" + stray)
+                .session(learner).with(xsrf())).andExpect(status().isNoContent());
+        start("withholding-tax-payment");
+    }
+
+    @Test
     @DisplayName("힌트는 요청할 때마다 하나씩 열리고, 다 열면 더 늘지 않는다")
     void hintsOpenOneByOne() throws Exception {
-        Long attemptId = start("receivable-collection");
+        Long attemptId = startAfterSkipping("receivable-collection", "withholding-tax-payment", "accounts-payable-other-payment");
 
         mvc.perform(get("/api/v1/learning/attempts/" + attemptId).session(learner))
                 .andExpect(jsonPath("$.date").value("2026-02-25"))
@@ -233,7 +266,7 @@ class LearningApiTest extends IntegrationTest {
     @Test
     @DisplayName("정답 보고 넘어가기: 쓰던 임시 전표는 지워지고 시스템이 정답 전표를 전기한다")
     void revealReplacesMyDraftWithTheAnswer() throws Exception {
-        Long attemptId = start("receivable-collection");
+        Long attemptId = startAfterSkipping("receivable-collection", "withholding-tax-payment", "accounts-payable-other-payment");
         createDraft(entryBody("2026-02-25", line("DEBIT", "103", null, 12_000_000), line("CREDIT", "404", null, 12_000_000))); // 매출을 또 잡는 실수
 
         attemptAction(attemptId, "reveal").andExpect(status().isOk()).andExpect(jsonPath("$.status").value("REVEALED"));
@@ -241,7 +274,8 @@ class LearningApiTest extends IntegrationTest {
         assertThat(jdbc.sql("select count(*) from journal_entry where company_id = ? and status = 'DRAFT'")
                 .param(companyId).query(Long.class).single()).isZero();
         assertThat(balance("108", "00101")).isZero();          // 한빛전자 외상매출금 12,000,000 회수됨
-        assertThat(balance("103", null)).isEqualTo(42_000_000); // 30,000,000 + 12,000,000
+        // 기초 30,000,000 − 원천세 250,000 − 미지급금 1,500,000 (앞 미션 두 개) + 회수 12,000,000
+        assertThat(balance("103", null)).isEqualTo(40_250_000);
         assertThat(balance("404", null)).isZero();              // 잘못 잡으려던 매출은 장부에 없다
         mvc.perform(get("/api/v1/learning/enrollments/" + enrollmentId).session(learner))
                 .andExpect(jsonPath("$.chapters[0].missions[2].status").value("REVEALED"));

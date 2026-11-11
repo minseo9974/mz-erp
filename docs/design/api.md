@@ -13,7 +13,7 @@ REST + JSON. 이 문서는 0단계 설계용 초안이고, 1단계부터는 spri
 | 금액 | JSON 정수(원). **최대 9,007,199,254,740,991** (JavaScript `Number.MAX_SAFE_INTEGER`) — DB는 `NUMERIC(18,0)`이지만 브라우저가 정확히 다룰 수 있는 범위로 API에서 제한 |
 | 코드 | 계정·거래처는 내부 id 대신 **코드**로 주고받음 (`"accountCode": "108"`) — 화면과 엑셀 업로드가 코드 기반이라서 |
 | 목록 | `?page=0&size=50&sort=entryDate,asc` · 응답 `{ "content": [...], "page": 0, "size": 50, "totalElements": 38 }` |
-| 동시 수정 | 수정 요청에 `version` 필수. 다르면 409 `VERSION_CONFLICT` |
+| 동시 수정 | 수정 요청에 `version` 필수. 다르면 409 `VERSION_CONFLICT`. 라인만 고쳐도 version이 오른다 |
 | 오류 | RFC 7807 Problem Details + 업무 오류 코드 (아래) |
 
 ### 오류 응답
@@ -267,7 +267,7 @@ POST /api/v1/companies/1/closing/2026/auto-entries
 | --- | --- | --- |
 | POST | `/enrollments` | 과정 시작 `{ "courseKey": "accounting-basics" }` → 실습 회사 생성. 이미 시작했으면 그 수강 |
 | GET | `/enrollments/{id}` | 장·미션 목록과 상태 (`NOT_STARTED` · `IN_PROGRESS` · `PASSED` · `REVEALED`) |
-| POST | `/enrollments/{id}/missions/{key}/start` | 미션 시작 — 지금 장부 잔액을 저장. 한 번에 하나만 (`MISSION_IN_PROGRESS` 409) |
+| POST | `/enrollments/{id}/missions/{key}/start` | 미션 시작 — 지금 장부 잔액을 저장. 409: 다른 미션 진행 중 `MISSION_IN_PROGRESS`, 앞 미션 미완료 `MISSION_LOCKED`, 남은 임시 전표 `MISSION_DRAFTS_LEFT` |
 | GET | `/attempts/{id}` | 미션 시도: 상황, 거래일, 연 힌트, 제출 횟수 |
 | POST | `/attempts/{id}/submit` | 결재 요청 → `{ passed, findings: [{ type, message }], attempt }`. 통과하면 팀장이 임시 전표를 전기 |
 | POST | `/attempts/{id}/hint` | 다음 힌트 열기 |
