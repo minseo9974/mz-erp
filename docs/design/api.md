@@ -266,6 +266,7 @@ POST /api/v1/companies/1/closing/2026/auto-entries
 | 메서드 | 경로 | 설명 |
 | --- | --- | --- |
 | POST | `/enrollments` | 과정 시작 `{ "courseKey": "accounting-basics" }` → 실습 회사 생성. 이미 시작했으면 그 수강 |
+| GET | `/enrollments` | 내 수강 목록 (각 수강의 장·미션 목록과 상태 포함). 없으면 빈 배열 |
 | GET | `/enrollments/{id}` | 장·미션 목록과 상태 (`NOT_STARTED` · `IN_PROGRESS` · `PASSED` · `REVEALED`) |
 | POST | `/enrollments/{id}/missions/{key}/start` | 미션 시작 — 지금 장부 잔액을 저장. 409: 다른 미션 진행 중 `MISSION_IN_PROGRESS`, 앞 미션 미완료 `MISSION_LOCKED`, 남은 임시 전표 `MISSION_DRAFTS_LEFT` |
 | GET | `/attempts/{id}` | 미션 시도: 상황, 거래일, 연 힌트, 제출 횟수 |
