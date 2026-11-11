@@ -73,8 +73,11 @@ public class LearningService {
 
     // ------------------------------------------------------------------ 응답 모델
 
-    /** @param status NOT_STARTED · IN_PROGRESS · PASSED · REVEALED */
-    public record MissionView(String key, String title, String status) {
+    /**
+     * @param status    NOT_STARTED · IN_PROGRESS · PASSED · REVEALED
+     * @param attemptId 시작한 적이 있으면 그 시도의 id
+     */
+    public record MissionView(String key, String title, String brief, LocalDate date, String status, Long attemptId) {
     }
 
     public record ChapterView(String key, String title, List<MissionView> missions) {
@@ -102,6 +105,14 @@ public class LearningService {
             return enrollments.save(new Enrollment(userId, companyId, course.key(), course.version()));
         });
         return view(enrollment, course);
+    }
+
+    /** 내 수강 목록. 화면이 "과정을 시작했는가"를 알기 위해 쓴다 (과정 시작은 회사를 만들므로 조회와 분리). */
+    @Transactional(readOnly = true)
+    public List<EnrollmentView> mine(Long userId) {
+        return enrollments.findByUserIdOrderById(userId).stream()
+                .map(e -> view(e, catalog.get(e.getCourseKey())))
+                .toList();
     }
 
     @Transactional(readOnly = true)
@@ -286,12 +297,16 @@ public class LearningService {
     }
 
     private EnrollmentView view(Enrollment enrollment, Course course) {
-        Map<String, MissionAttempt.Status> status = attempts.findByEnrollmentId(enrollment.getId()).stream()
-                .collect(Collectors.toMap(MissionAttempt::getMissionKey, MissionAttempt::getStatus));
+        Map<String, MissionAttempt> byMission = attempts.findByEnrollmentId(enrollment.getId()).stream()
+                .collect(Collectors.toMap(MissionAttempt::getMissionKey, Function.identity()));
         List<ChapterView> chapters = course.chapters().stream()
                 .map(c -> new ChapterView(c.key(), c.title(), c.missions().stream()
-                        .map(m -> new MissionView(m.key(), m.title(),
-                                status.containsKey(m.key()) ? status.get(m.key()).name() : "NOT_STARTED"))
+                        .map(m -> {
+                            MissionAttempt attempt = byMission.get(m.key());
+                            return new MissionView(m.key(), m.title(), m.brief(), m.date(),
+                                    attempt == null ? "NOT_STARTED" : attempt.getStatus().name(),
+                                    attempt == null ? null : attempt.getId());
+                        })
                         .toList()))
                 .toList();
         return new EnrollmentView(enrollment.getId(), enrollment.getCompanyId(), course.key(), course.title(), chapters);

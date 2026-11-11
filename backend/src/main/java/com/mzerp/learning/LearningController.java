@@ -38,6 +38,12 @@ public class LearningController {
         return service.enroll(user.userId(), request.courseKey());
     }
 
+    /** 내 수강 목록 (아직 시작하지 않았으면 빈 목록) */
+    @GetMapping("/enrollments")
+    public java.util.List<LearningService.EnrollmentView> mine(@AuthenticationPrincipal AppUserPrincipal user) {
+        return service.mine(user.userId());
+    }
+
     @GetMapping("/enrollments/{enrollmentId}")
     public LearningService.EnrollmentView enrollment(@AuthenticationPrincipal AppUserPrincipal user,
                                                      @PathVariable Long enrollmentId) {

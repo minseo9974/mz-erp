@@ -10,7 +10,7 @@ function renderLogin() {
   const router = createMemoryRouter(
     [
       { path: '/login', element: <LoginPage /> },
-      { path: '/companies', element: <p>회사 선택 화면</p> },
+      { path: '/desk', element: <p>내 책상 화면</p> },
     ],
     { initialEntries: ['/login'] },
   )
@@ -42,7 +42,7 @@ describe('LoginPage', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('아이디 또는 비밀번호가 올바르지 않습니다')
   })
 
-  it('로그인에 성공하면 회사 선택 화면으로 간다', async () => {
+  it('로그인에 성공하면 내 책상으로 간다', async () => {
     document.cookie = 'XSRF-TOKEN=t; path=/'
     vi.stubGlobal(
       'fetch',
@@ -52,6 +52,6 @@ describe('LoginPage', () => {
     await userEvent.type(screen.getByLabelText('아이디'), 'admin')
     await userEvent.type(screen.getByLabelText('비밀번호'), 'admin1234')
     await userEvent.click(screen.getByRole('button', { name: '로그인' }))
-    expect(await screen.findByText('회사 선택 화면')).toBeInTheDocument()
+    expect(await screen.findByText('내 책상 화면')).toBeInTheDocument()
   })
 })

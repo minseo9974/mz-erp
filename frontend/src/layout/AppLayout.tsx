@@ -1,7 +1,9 @@
-import { NavLink, Navigate, Outlet, useNavigate, useParams } from 'react-router'
+import { Link, NavLink, Navigate, Outlet, useNavigate, useParams } from 'react-router'
 
 import { useLogout, useMe } from '../api/hooks'
 import { ROLE_LABEL } from '../api/types'
+import { useMyEnrollments } from '../pages/learning/hooks'
+import { MissionPanel } from '../pages/learning/MissionPanel'
 
 const MENU = [
   { group: '기초정보', items: [
@@ -23,14 +25,17 @@ export function AppLayout() {
   const me = useMe()
   const logout = useLogout()
   const navigate = useNavigate()
+  const enrollments = useMyEnrollments()
 
   const company = me.data?.companies.find((c) => String(c.companyId) === companyId)
   // 권한이 없는 회사 주소로 들어오면 회사 선택으로
   if (me.data && !company) return <Navigate to="/companies" replace />
   if (!company) return null
+  // 이 회사가 실습 회사면 미션 패널을 옆에 붙인다. 화면 자체는 자유 모드와 같다
+  const enrollment = enrollments.data?.find((e) => e.companyId === company.companyId)
 
   return (
-    <div className="app">
+    <div className={enrollment ? 'app with-mission' : 'app'}>
       <header className="app-header">
         <span className="logo">MZ-ERP</span>
         <select
@@ -46,6 +51,7 @@ export function AppLayout() {
         </select>
         <span className="badge">{ROLE_LABEL[company.role]}</span>
         <span className="spacer" />
+        {enrollment && <Link to="/desk">내 책상</Link>}
         <span className="muted user-name">{me.data!.name}</span>
         <button
           onClick={() => logout.mutate(undefined, { onSuccess: () => navigate('/login', { replace: true }) })}
@@ -75,6 +81,7 @@ export function AppLayout() {
       <main className="app-main">
         <Outlet />
       </main>
+      {enrollment && <MissionPanel enrollment={enrollment} />}
     </div>
   )
 }
