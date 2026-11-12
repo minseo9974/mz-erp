@@ -56,6 +56,20 @@ public class LearningController {
         return service.start(user.userId(), enrollmentId, missionKey);
     }
 
+    /** 끝낸 미션 다시 보기: 정답 분개, 해설, 내 기록. 끝내기 전에는 409 (정답이 들어 있다) */
+    @GetMapping("/enrollments/{enrollmentId}/missions/{missionKey}/review")
+    public LearningService.ReviewView review(@AuthenticationPrincipal AppUserPrincipal user,
+                                             @PathVariable Long enrollmentId, @PathVariable String missionKey) {
+        return service.review(user.userId(), enrollmentId, missionKey);
+    }
+
+    /** 끝낸 미션 다시 풀기 (연습): 채점만 하고 장부에는 반영하지 않는다 */
+    @PostMapping("/enrollments/{enrollmentId}/missions/{missionKey}/retry")
+    public LearningService.AttemptView retry(@AuthenticationPrincipal AppUserPrincipal user,
+                                             @PathVariable Long enrollmentId, @PathVariable String missionKey) {
+        return service.retry(user.userId(), enrollmentId, missionKey);
+    }
+
     @GetMapping("/attempts/{attemptId}")
     public LearningService.AttemptView attempt(@AuthenticationPrincipal AppUserPrincipal user, @PathVariable Long attemptId) {
         return service.attempt(user.userId(), attemptId);

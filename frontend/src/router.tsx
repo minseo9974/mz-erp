@@ -5,6 +5,7 @@ import { RequireAuth } from './layout/RequireAuth'
 import { CompanySelectPage } from './pages/CompanySelectPage'
 import { FiscalYearsPage } from './pages/FiscalYearsPage'
 import { DeskPage } from './pages/learning/DeskPage'
+import { MissionReviewPage } from './pages/learning/MissionReviewPage'
 import { LoginPage } from './pages/LoginPage'
 
 // 메뉴 = URL (docs/design/screens.md): 새로고침·북마크해도 같은 화면
@@ -17,6 +18,8 @@ export const router = createBrowserRouter([
       // 첫 화면은 실습의 '내 책상'. 미션 없이 ERP만 쓰는 자유 모드는 /companies
       { path: '/', element: <Navigate to="/desk" replace /> },
       { path: '/desk', element: <DeskPage /> },
+      // 끝낸 미션 다시 보기: 정답 분개 · 해설 · 다시 풀기
+      { path: '/desk/missions/:missionKey', element: <MissionReviewPage /> },
       { path: '/companies', element: <CompanySelectPage /> },
       {
         path: '/companies/:companyId',

@@ -13,8 +13,11 @@ export interface MissionSummary {
   title: string
   brief: string
   date: string
+  /** 본 시도의 상태 */
   status: MissionStatus
   attemptId: number | null
+  /** 끝낸 미션을 지금 다시 풀고 있으면 그 연습 시도 */
+  practiceAttemptId: number | null
 }
 
 export interface Chapter {
@@ -38,6 +41,8 @@ export interface Attempt {
   brief: string
   date: string
   status: Exclude<MissionStatus, 'NOT_STARTED'>
+  /** 끝낸 미션을 다시 푸는 연습: 채점만 하고 장부에는 반영하지 않는다 */
+  practice: boolean
   hints: string[]
   hintsRemaining: number
   submissions: number
@@ -54,6 +59,34 @@ export interface SubmitResult {
   attempt: Attempt
 }
 
+export interface AnswerLine {
+  side: 'DEBIT' | 'CREDIT'
+  accountCode: string
+  accountName: string
+  partnerName: string | null
+  amount: number
+}
+
+/** 끝낸 미션 다시 보기 */
+export interface MissionReview {
+  key: string
+  title: string
+  chapterTitle: string
+  brief: string
+  date: string
+  status: 'PASSED' | 'REVEALED'
+  finishedAt: string
+  answer: AnswerLine[]
+  explanation: string
+  hints: string[]
+  hintsUsed: number
+  submissions: number
+  /** 본 시도에서 반려될 때마다 받은 사유 */
+  rejections: string[][]
+  practices: number
+  practiceAttemptId: number | null
+}
+
 export const COURSE_KEY = 'accounting-basics'
 
 const base = '/api/v1/learning'
@@ -61,19 +94,31 @@ const base = '/api/v1/learning'
 export const learningKeys = {
   enrollments: ['learning', 'enrollments'] as const,
   attempt: (id: number) => ['learning', 'attempts', id] as const,
+  reviews: ['learning', 'review'] as const,
+  review: (enrollmentId: number, missionKey: string) => ['learning', 'review', enrollmentId, missionKey] as const,
 }
 
 export const allMissions = (e: Enrollment) => e.chapters.flatMap((c) => c.missions)
 
-/** 지금 할 업무: 진행 중인 미션, 없으면 아직 시작하지 않은 첫 미션 */
+export const isFinished = (m: MissionSummary) => m.status === 'PASSED' || m.status === 'REVEALED'
+
+/** 지금 풀고 있는 시도: 다시 푸는 연습이 있으면 그것, 아니면 진행 중인 본 시도 */
+export const activeAttemptId = (m: MissionSummary) =>
+  m.practiceAttemptId ?? (m.status === 'IN_PROGRESS' ? m.attemptId : null)
+
+/** 지금 풀고 있는 미션 (한 번에 하나) */
+export const activeMission = (e: Enrollment) => allMissions(e).find((m) => activeAttemptId(m) !== null)
+
+/** 지금 할 업무: 풀고 있는 미션, 없으면 아직 시작하지 않은 첫 미션 */
 export function nextMission(e: Enrollment): MissionSummary | undefined {
-  const missions = allMissions(e)
-  return missions.find((m) => m.status === 'IN_PROGRESS') ?? missions.find((m) => m.status === 'NOT_STARTED')
+  return activeMission(e) ?? allMissions(e).find((m) => m.status === 'NOT_STARTED')
 }
 
 /** 미션의 거래일이 속한 달의 일반전표 화면 */
 export const missionPath = (companyId: number, date: string) =>
   `/companies/${companyId}/journal-entries?month=${date.slice(0, 7)}`
+
+export const reviewPath = (missionKey: string) => `/desk/missions/${missionKey}`
 
 export function useMyEnrollments() {
   return useQuery({ queryKey: learningKeys.enrollments, queryFn: () => api<Enrollment[]>(`${base}/enrollments`) })
@@ -101,6 +146,30 @@ export function useStartMission(enrollmentId: number) {
   })
 }
 
+/** 끝낸 미션 다시 보기: 정답 분개, 해설, 내 기록 */
+export function useMissionReview(enrollmentId: number | undefined, missionKey: string) {
+  return useQuery({
+    queryKey: learningKeys.review(enrollmentId ?? 0, missionKey),
+    queryFn: () => api<MissionReview>(`${base}/enrollments/${enrollmentId}/missions/${missionKey}/review`),
+    enabled: enrollmentId !== undefined,
+    retry: false,
+  })
+}
+
+/** 끝낸 미션 다시 풀기 (연습) */
+export function useRetryMission(enrollmentId: number) {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: (missionKey: string) =>
+      api<Attempt>(`${base}/enrollments/${enrollmentId}/missions/${missionKey}/retry`, { method: 'POST' }),
+    onSuccess: () =>
+      Promise.all([
+        client.invalidateQueries({ queryKey: learningKeys.enrollments }),
+        client.invalidateQueries({ queryKey: learningKeys.reviews }),
+      ]),
+  })
+}
+
 export function useAttempt(attemptId: number | null) {
   return useQuery({
     queryKey: learningKeys.attempt(attemptId ?? 0),
@@ -119,6 +188,7 @@ export function useAttemptActions(attemptId: number, companyId: number) {
     Promise.all([
       client.invalidateQueries({ queryKey: learningKeys.enrollments }),
       client.invalidateQueries({ queryKey: learningKeys.attempt(attemptId) }),
+      client.invalidateQueries({ queryKey: learningKeys.reviews }),
       client.invalidateQueries({ queryKey: journalKeys.all(companyId) }),
     ])
   const submit = useMutation({

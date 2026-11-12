@@ -235,6 +235,8 @@ ERP 테이블은 바꾸지 않고 실습 층 테이블만 추가합니다.
 | POST | `/learning/attempts/{id}/submit` | 결재 요청 → 승인(전기) 또는 반려 사유 |
 | POST | `/learning/attempts/{id}/hint` · `/reveal` | 다음 힌트 · 정답 대신 처리 |
 | POST | `/learning/enrollments/{id}/restart?chapter=` | 그 장의 체크포인트에서 다시 시작 |
+| GET | `/learning/enrollments/{id}/missions/{key}/review` | 끝낸 미션 다시 보기: 정답 분개, 해설, 내 기록 |
+| POST | `/learning/enrollments/{id}/missions/{key}/retry` | 끝낸 미션 다시 풀기(연습). 그 거래는 이미 장부에 있으므로 채점만 하고 연습 전표는 지운다 |
 
 ## 9. 완성도를 높이는 것
 

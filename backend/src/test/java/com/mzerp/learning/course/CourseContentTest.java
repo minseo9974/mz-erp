@@ -28,11 +28,12 @@ class CourseContentTest {
     }
 
     @Test
-    @DisplayName("모든 미션: 상황 설명이 있고, 힌트가 2개 이상이며, 정답 분개의 차변과 대변이 같다")
+    @DisplayName("모든 미션: 상황 설명과 해설이 있고, 힌트가 2개 이상이며, 정답 분개의 차변과 대변이 같다")
     void everyMissionIsComplete() {
         for (Course.Mission m : course.missions()) {
             assertThat(m.brief()).as(m.key() + " 상황").isNotBlank();
             assertThat(m.hints()).as(m.key() + " 힌트").hasSizeGreaterThanOrEqualTo(2);
+            assertThat(m.explanation()).as(m.key() + " 해설").contains("흔한 실수").contains("실무에서는");
             long debit = m.answer().lines().stream().filter(l -> l.side() == Side.DEBIT).mapToLong(l -> l.amount()).sum();
             long credit = m.answer().lines().stream().filter(l -> l.side() == Side.CREDIT).mapToLong(l -> l.amount()).sum();
             assertThat(debit).as(m.key() + " 차대").isEqualTo(credit).isPositive();
