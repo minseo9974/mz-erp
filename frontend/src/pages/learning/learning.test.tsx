@@ -5,8 +5,9 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router'
 
 import { DeskPage } from './DeskPage'
-import type { Attempt, Enrollment, MissionStatus } from './hooks'
+import type { Attempt, Enrollment, MissionReview, MissionStatus } from './hooks'
 import { MissionPanel } from './MissionPanel'
+import { MissionReviewPage } from './MissionReviewPage'
 
 const mission = (key: string, title: string, date: string, status: MissionStatus, attemptId: number | null = null) => ({
   key,
@@ -15,6 +16,7 @@ const mission = (key: string, title: string, date: string, status: MissionStatus
   date,
   status,
   attemptId,
+  practiceAttemptId: null as number | null,
 })
 
 const enrollment = (statuses: [MissionStatus, MissionStatus]): Enrollment => ({
@@ -41,6 +43,7 @@ const attempt = (patch: Partial<Attempt> = {}): Attempt => ({
   brief: '작년 12월 급여에서 떼어 둔 세금을 납부했어요.',
   date: '2026-01-10',
   status: 'IN_PROGRESS',
+  practice: false,
   hints: [],
   hintsRemaining: 2,
   submissions: 0,
@@ -101,7 +104,7 @@ describe('내 책상', () => {
 
     await userEvent.setup().click(await screen.findByRole('button', { name: '입사하기' }))
 
-    expect(await screen.findByRole('heading', { name: '받은 업무함' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: '업무 목록' })).toBeInTheDocument()
     expect(calls).toContain('POST /api/v1/learning/enrollments')
   })
 
@@ -114,7 +117,7 @@ describe('내 책상', () => {
     renderAt('/desk', <DeskPage />)
 
     expect(await screen.findByText('미지급금 지급 상황 설명')).toBeInTheDocument()
-    expect(screen.getByText('1 / 2')).toBeInTheDocument() // 진행도
+    expect(screen.getByRole('progressbar', { name: '진행도' })).toHaveAttribute('aria-valuenow', '1')
     await userEvent.setup().click(screen.getByRole('button', { name: '업무 시작' }))
 
     expect(await screen.findByTestId('where')).toHaveTextContent('/companies/7/journal-entries?month=2026-01')
@@ -169,5 +172,149 @@ describe('미션 패널', () => {
 
     expect(await screen.findByText(/김 팀장이 승인했습니다/)).toBeInTheDocument()
     expect(screen.getByRole('link', { name: '내 책상으로 →' })).toHaveAttribute('href', '/desk')
+    expect(screen.getByRole('link', { name: '해설 보기' })).toHaveAttribute('href', '/desk/missions/withholding-tax-payment')
+  })
+
+  it('다시 푸는 연습이면 연습이라고 알리고, 통과하면 장부에 반영하지 않았다고 안내한다', async () => {
+    const practicing = (): Enrollment => {
+      const e = enrollment(['PASSED', 'NOT_STARTED'])
+      e.chapters[0].missions[0].practiceAttemptId = 21
+      return e
+    }
+    stubApi({
+      'GET /api/v1/learning/attempts/21': attempt({ id: 21, practice: true }),
+      'GET /api/v1/learning/enrollments': [enrollment(['PASSED', 'NOT_STARTED'])],
+      'POST /api/v1/learning/attempts/21/submit': {
+        passed: true,
+        findings: [],
+        attempt: attempt({ id: 21, practice: true, status: 'PASSED', submissions: 1 }),
+      },
+    })
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    const view = (e: Enrollment) => (
+      <QueryClientProvider client={client}>
+        <MemoryRouter>
+          <MissionPanel enrollment={e} />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+    const { rerender } = render(view(practicing()))
+
+    expect(await screen.findByText('다시 풀기')).toBeInTheDocument()
+    expect(screen.getByText(/장부에는 반영되지 않습니다/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '연습 그만두기' })).toBeInTheDocument()
+    await userEvent.setup().click(screen.getByRole('button', { name: '결재 요청' }))
+    rerender(view(enrollment(['PASSED', 'NOT_STARTED'])))
+
+    expect(await screen.findByText(/연습이라 장부에는 반영하지 않았고/)).toBeInTheDocument()
+  })
+})
+
+describe('업무 목록', () => {
+  it('끝낸 업무는 다시 보기로 가는 링크, 지금 할 업무는 버튼, 아직 열리지 않은 업무는 누를 수 없다', async () => {
+    const e = enrollment(['PASSED', 'NOT_STARTED'])
+    e.chapters[0].missions.push(mission('receivable-collection', '외상매출금 회수', '2026-02-25', 'NOT_STARTED'))
+    stubApi({ 'GET /api/v1/me': ME, 'GET /api/v1/learning/enrollments': [e] })
+    renderAt('/desk', <DeskPage />)
+
+    const done = await screen.findByRole('link', { name: '원천세 납부 해설 보기 · 다시 풀기' })
+    expect(done).toHaveAttribute('href', '/desk/missions/withholding-tax-payment')
+    expect(screen.getByRole('button', { name: '미지급금 지급 업무 시작' })).toBeEnabled()
+    // 잠긴 업무는 링크도 버튼도 아니다
+    expect(screen.queryByRole('link', { name: /외상매출금 회수/ })).toBeNull()
+    expect(screen.queryByRole('button', { name: /외상매출금 회수/ })).toBeNull()
+    expect(screen.getByText('대기')).toBeInTheDocument()
+  })
+})
+
+describe('미션 다시 보기', () => {
+  const review = (patch: Partial<MissionReview> = {}): MissionReview => ({
+    key: 'withholding-tax-payment',
+    title: '원천세 납부',
+    chapterTitle: '전표의 기본',
+    brief: '작년 12월 급여에서 떼어 둔 세금을 납부했어요.',
+    date: '2026-01-10',
+    status: 'PASSED',
+    finishedAt: '2026-11-11T01:00:00Z',
+    answer: [
+      { side: 'DEBIT', accountCode: '254', accountName: '예수금', partnerName: null, amount: 250000 },
+      { side: 'CREDIT', accountCode: '103', accountName: '보통예금', partnerName: null, amount: 250000 },
+    ],
+    explanation: '떼어 둔 돈은 맡은 돈이에요.\n\n- 부채가 줄면 차변이에요.\n\n흔한 실수: 비용으로 처리하는 것.\n\n실무에서는: 매달 10일이 납부일이에요.',
+    hints: ['맡아 둔 돈은 부채예요.', '부채가 줄면 차변이에요!'],
+    hintsUsed: 1,
+    submissions: 2,
+    rejections: [['차변과 대변이 서로 바뀌었어요.']],
+    practices: 0,
+    practiceAttemptId: null,
+    ...patch,
+  })
+  const REVIEW = 'GET /api/v1/learning/enrollments/3/missions/withholding-tax-payment/review'
+  const renderReview = () =>
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={['/desk/missions/withholding-tax-payment']}>
+          <Routes>
+            <Route path="/desk/missions/:missionKey" element={<MissionReviewPage />} />
+            <Route path="*" element={<Where />} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    )
+
+  it('정답 분개와 해설, 내 기록을 보여 준다', async () => {
+    stubApi({
+      'GET /api/v1/me': ME,
+      'GET /api/v1/learning/enrollments': [enrollment(['PASSED', 'NOT_STARTED'])],
+      [REVIEW]: review(),
+    })
+    renderReview()
+
+    expect(await screen.findByRole('heading', { name: '원천세 납부' })).toBeInTheDocument()
+    expect(screen.getByText('결재 승인')).toBeInTheDocument()
+    // 정답 분개: 차변 예수금 / 대변 보통예금
+    const row = screen.getByText('예수금').closest('tr')!
+    expect(row).toHaveTextContent('예수금 254250,000보통예금 103250,000')
+    // 해설: 문단, 목록, 눈에 띄는 두 문단
+    expect(screen.getByText('부채가 줄면 차변이에요.').tagName).toBe('LI')
+    expect(screen.getByText('흔한 실수').closest('.callout')).toHaveTextContent('비용으로 처리하는 것.')
+    expect(screen.getByText('실무에서는').closest('.callout')).toHaveClass('tip')
+    // 내 기록
+    expect(screen.getByText('결재 요청').nextElementSibling).toHaveTextContent('2회')
+    expect(screen.getByText('차변과 대변이 서로 바뀌었어요.')).toBeInTheDocument()
+  })
+
+  it('다시 풀기를 누르면 연습을 시작하고 거래일이 속한 달의 전표 화면으로 간다', async () => {
+    const calls = stubApi({
+      'GET /api/v1/me': ME,
+      'GET /api/v1/learning/enrollments': [enrollment(['PASSED', 'NOT_STARTED'])],
+      [REVIEW]: review(),
+      'POST /api/v1/learning/enrollments/3/missions/withholding-tax-payment/retry': attempt({ id: 21, practice: true }),
+    })
+    renderReview()
+
+    await userEvent.setup().click(await screen.findByRole('button', { name: '다시 풀기' }))
+
+    expect(await screen.findByTestId('where')).toHaveTextContent('/companies/7/journal-entries?month=2026-01')
+    expect(calls).toContain('POST /api/v1/learning/enrollments/3/missions/withholding-tax-payment/retry')
+  })
+
+  it('아직 끝내지 않은 업무는 볼 수 없다고 안내한다', async () => {
+    document.cookie = 'XSRF-TOKEN=t; path=/'
+    vi.stubGlobal(
+      'fetch',
+      vi.fn<typeof fetch>(async (input) => {
+        const url = String(input)
+        if (url.endsWith('/review')) {
+          const body = { code: 'MISSION_NOT_FINISHED', title: '아직 끝내지 않은 미션입니다', detail: "'원천세 납부' 미션을 끝낸 뒤에 볼 수 있어요" }
+          return new Response(JSON.stringify(body), { status: 409 })
+        }
+        return new Response(JSON.stringify(url.endsWith('/me') ? ME : [enrollment(['IN_PROGRESS', 'NOT_STARTED'])]), { status: 200 })
+      }),
+    )
+    renderReview()
+
+    expect(await screen.findByText("'원천세 납부' 미션을 끝낸 뒤에 볼 수 있어요")).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: '내 책상으로 돌아가기' })).toHaveAttribute('href', '/desk')
   })
 })

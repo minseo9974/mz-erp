@@ -286,4 +286,139 @@ class LearningApiTest extends IntegrationTest {
         mvc.perform(get("/api/v1/learning/enrollments/" + enrollmentId).session(learner))
                 .andExpect(jsonPath("$.chapters[0].missions[2].status").value("REVEALED"));
     }
+
+    // ------------------------------------------------------------------ 끝낸 미션: 다시 보기 · 다시 풀기
+
+    private String mission(String key, String action) {
+        return "/api/v1/learning/enrollments/" + enrollmentId + "/missions/" + key + "/" + action;
+    }
+
+    /** 원천세 납부를 한 번 반려된 뒤 통과한다 */
+    private void passWithholdingTax() throws Exception {
+        Long attemptId = start("withholding-tax-payment");
+        attemptAction(attemptId, "hint");
+        Long entryId = createDraft(entryBody("2026-01-10", line("DEBIT", "103", null, 250_000), line("CREDIT", "254", null, 250_000)));
+        attemptAction(attemptId, "submit").andExpect(jsonPath("$.passed").value(false));
+        updateDraft(entryId, 0, entryBody("2026-01-10", line("DEBIT", "254", null, 250_000), line("CREDIT", "103", null, 250_000)));
+        attemptAction(attemptId, "submit").andExpect(jsonPath("$.passed").value(true));
+    }
+
+    @Test
+    @DisplayName("다시 보기: 끝내기 전에는 409 (정답이 들어 있다), 끝낸 뒤에는 정답 분개 · 해설 · 내가 반려됐던 사유를 준다")
+    void reviewShowsAnswerAndExplanationOnlyAfterFinishing() throws Exception {
+        mvc.perform(get(mission("withholding-tax-payment", "review")).session(learner))
+                .andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("MISSION_NOT_FINISHED"));
+        Long attemptId = start("withholding-tax-payment");
+        mvc.perform(get(mission("withholding-tax-payment", "review")).session(learner)).andExpect(status().isConflict());
+        // 진행 중에 보이는 응답에는 해설이 없다
+        assertThat(mvc.perform(get("/api/v1/learning/attempts/" + attemptId).session(learner)).andReturn()
+                .getResponse().getContentAsString()).doesNotContain("explanation").doesNotContain("흔한 실수");
+        attemptAction(attemptId, "reveal").andExpect(status().isOk());
+        mvc.perform(get(mission("withholding-tax-payment", "review")).session(learner))
+                .andExpect(jsonPath("$.status").value("REVEALED"))
+                .andExpect(jsonPath("$.rejections", hasSize(0)));
+
+        Long second = start("accounts-payable-other-payment");
+        createDraft(entryBody("2026-01-15", line("DEBIT", "253", "00603", 1_500_000), line("CREDIT", "103", null, 1_500_000)));
+        attemptAction(second, "submit").andExpect(jsonPath("$.passed").value(false));
+        attemptAction(second, "reveal").andExpect(status().isOk());
+
+        mvc.perform(get(mission("accounts-payable-other-payment", "review")).session(learner))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.title").value("미지급금 지급"))
+                .andExpect(jsonPath("$.chapterTitle").value("전표의 기본"))
+                .andExpect(jsonPath("$.answer", hasSize(2)))
+                .andExpect(jsonPath("$.answer[0].side").value("DEBIT"))
+                .andExpect(jsonPath("$.answer[0].accountName").value("미지급금"))
+                .andExpect(jsonPath("$.answer[0].partnerName").value("(주)케이렌탈"))
+                .andExpect(jsonPath("$.answer[0].amount").value(1_500_000))
+                .andExpect(jsonPath("$.answer[1].accountName").value("보통예금"))
+                .andExpect(jsonPath("$.explanation").value(org.hamcrest.Matchers.containsString("흔한 실수")))
+                .andExpect(jsonPath("$.hints", hasSize(2)))
+                .andExpect(jsonPath("$.submissions").value(1))
+                .andExpect(jsonPath("$.rejections", hasSize(1)))
+                .andExpect(jsonPath("$.rejections[0][0]").isString())
+                .andExpect(jsonPath("$.practices").value(0));
+
+        // 남의 미션은 볼 수 없다
+        AppUser other = createUser("other", PASSWORD, null, null);
+        mvc.perform(get(mission("accounts-payable-other-payment", "review")).session(login(other.getLoginId(), PASSWORD)))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    @DisplayName("다시 풀기(연습): 채점은 똑같이 하지만 통과해도 전기하지 않고 연습 전표를 지운다 — 장부는 그대로다")
+    void retryGradesWithoutTouchingTheLedger() throws Exception {
+        mvc.perform(post(mission("withholding-tax-payment", "retry")).session(learner).with(xsrf()))
+                .andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("MISSION_NOT_FINISHED"));
+        passWithholdingTax();
+        long cash = balance("103", null);
+        long postedBefore = jdbc.sql("select count(*) from journal_entry where company_id = ? and status = 'POSTED'")
+                .param(companyId).query(Long.class).single();
+
+        String json = mvc.perform(post(mission("withholding-tax-payment", "retry")).session(learner).with(xsrf()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.practice").value(true))
+                .andExpect(jsonPath("$.status").value("IN_PROGRESS"))
+                .andExpect(jsonPath("$.hints", hasSize(0)))
+                .andReturn().getResponse().getContentAsString();
+        Long practiceId = ((Number) JsonPath.read(json, "$.id")).longValue();
+        // 본 시도의 결과는 그대로이고, 지금 연습 중이라는 것만 더해진다
+        mvc.perform(get("/api/v1/learning/enrollments/" + enrollmentId).session(learner))
+                .andExpect(jsonPath("$.chapters[0].missions[0].status").value("PASSED"))
+                .andExpect(jsonPath("$.chapters[0].missions[0].practiceAttemptId").value(practiceId));
+        // 같은 미션을 또 누르면 같은 연습, 연습 중에는 다음 미션을 시작할 수 없다
+        mvc.perform(post(mission("withholding-tax-payment", "retry")).session(learner).with(xsrf()))
+                .andExpect(jsonPath("$.id").value(practiceId));
+        mvc.perform(post(mission("accounts-payable-other-payment", "start")).session(learner).with(xsrf()))
+                .andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("MISSION_IN_PROGRESS"));
+
+        attemptAction(practiceId, "submit").andExpect(jsonPath("$.findings[0].type").value("NO_ENTRY"));
+        Long entryId = createDraft(entryBody("2026-01-10", line("DEBIT", "817", null, 250_000), line("CREDIT", "103", null, 250_000)));
+        attemptAction(practiceId, "submit")
+                .andExpect(jsonPath("$.passed").value(false))
+                .andExpect(jsonPath("$.findings[0].type").value("WRONG_ACCOUNT"));
+        updateDraft(entryId, 0, entryBody("2026-01-10", line("DEBIT", "254", null, 250_000), line("CREDIT", "103", null, 250_000)));
+        attemptAction(practiceId, "submit")
+                .andExpect(jsonPath("$.passed").value(true))
+                .andExpect(jsonPath("$.attempt.status").value("PASSED"));
+
+        // 연습 전표는 사라지고 장부는 연습 전과 같다
+        mvc.perform(get(entries() + "/" + entryId).session(learner)).andExpect(status().isNotFound());
+        assertThat(balance("103", null)).isEqualTo(cash);
+        assertThat(jdbc.sql("select count(*) from journal_entry where company_id = ? and status = 'POSTED'")
+                .param(companyId).query(Long.class).single()).isEqualTo(postedBefore);
+        mvc.perform(get("/api/v1/learning/enrollments/" + enrollmentId).session(learner))
+                .andExpect(jsonPath("$.chapters[0].missions[0].status").value("PASSED"))
+                .andExpect(jsonPath("$.chapters[0].missions[0].practiceAttemptId").doesNotExist());
+        mvc.perform(get(mission("withholding-tax-payment", "review")).session(learner))
+                .andExpect(jsonPath("$.status").value("PASSED"))
+                .andExpect(jsonPath("$.submissions").value(2))       // 본 시도의 기록만
+                .andExpect(jsonPath("$.hintsUsed").value(1))
+                .andExpect(jsonPath("$.rejections", hasSize(1)))
+                .andExpect(jsonPath("$.practices").value(1));
+
+        // 연습을 끝냈으니 다음 미션을 시작할 수 있다
+        start("accounts-payable-other-payment");
+    }
+
+    @Test
+    @DisplayName("연습을 그만두면(정답 보고 넘어가기) 쓰던 전표만 지워지고, 정답 전표가 또 들어가지 않는다")
+    void quittingPracticeLeavesTheLedgerAlone() throws Exception {
+        passWithholdingTax();
+        long cash = balance("103", null);
+        String json = mvc.perform(post(mission("withholding-tax-payment", "retry")).session(learner).with(xsrf()))
+                .andReturn().getResponse().getContentAsString();
+        Long practiceId = ((Number) JsonPath.read(json, "$.id")).longValue();
+        createDraft(entryBody("2026-01-10", line("DEBIT", "817", null, 250_000), line("CREDIT", "103", null, 250_000)));
+
+        attemptAction(practiceId, "reveal").andExpect(status().isOk()).andExpect(jsonPath("$.status").value("REVEALED"));
+
+        assertThat(jdbc.sql("select count(*) from journal_entry where company_id = ? and status = 'DRAFT'")
+                .param(companyId).query(Long.class).single()).isZero();
+        assertThat(balance("103", null)).isEqualTo(cash);
+        assertThat(balance("254", null)).isZero();
+        mvc.perform(get("/api/v1/learning/enrollments/" + enrollmentId).session(learner))
+                .andExpect(jsonPath("$.chapters[0].missions[0].status").value("PASSED")); // 본 시도는 통과한 그대로
+    }
 }

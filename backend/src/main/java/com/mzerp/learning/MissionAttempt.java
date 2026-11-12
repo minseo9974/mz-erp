@@ -17,6 +17,8 @@ import com.mzerp.common.error.ErrorCode;
 /**
  * 미션 시도. 시작할 때의 장부 잔액(baseline)을 품고 있다가, 제출할 때 지금 잔액과의 차이로 채점된다 (ADR-0013).
  * 끝나는 길은 둘: 채점 통과(PASSED), 정답 보고 넘어가기(REVEALED).
+ * <p>
+ * 끝낸 미션을 다시 푸는 것은 연습 시도({@code practice})로 따로 남는다. 연습은 채점만 하고 장부에는 반영하지 않는다.
  */
 @Entity
 @Table(name = "mission_attempt")
@@ -53,6 +55,10 @@ public class MissionAttempt {
     @Column(nullable = false)
     private int submissions;
 
+    /** 끝낸 미션을 다시 푸는 연습인가. 연습은 통과해도 전표를 전기하지 않는다 */
+    @Column(nullable = false, updatable = false)
+    private boolean practice;
+
     @Column(name = "started_at", nullable = false, updatable = false)
     private Instant startedAt = Instant.now();
 
@@ -62,11 +68,16 @@ public class MissionAttempt {
     protected MissionAttempt() {
     }
 
-    MissionAttempt(Long enrollmentId, Long companyId, String missionKey, String baseline) {
+    MissionAttempt(Long enrollmentId, Long companyId, String missionKey, String baseline, boolean practice) {
         this.enrollmentId = enrollmentId;
         this.companyId = companyId;
         this.missionKey = missionKey;
         this.baseline = baseline;
+        this.practice = practice;
+    }
+
+    boolean isInProgress() {
+        return status == Status.IN_PROGRESS;
     }
 
     void requireInProgress() {
@@ -102,4 +113,6 @@ public class MissionAttempt {
     public String getBaseline() { return baseline; }
     public int getHintsUsed() { return hintsUsed; }
     public int getSubmissions() { return submissions; }
+    public boolean isPractice() { return practice; }
+    public Instant getFinishedAt() { return finishedAt; }
 }

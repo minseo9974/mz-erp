@@ -15,11 +15,12 @@ public record Course(String key, int version, String title, Scenario scenario, L
     }
 
     /**
-     * @param answer 정답 분개 (시나리오 거래)
-     * @param accept 정답으로 인정하는 다른 분개들. 없으면 빈 목록
+     * @param explanation 왜 이 분개인가. 미션을 끝낸 뒤에만 보여 준다
+     * @param answer      정답 분개 (시나리오 거래)
+     * @param accept      정답으로 인정하는 다른 분개들. 없으면 빈 목록
      */
     public record Mission(String key, String chapterKey, String title, String brief, List<String> hints,
-                          Scenario.Entry answer, List<List<Scenario.Line>> accept) {
+                          String explanation, Scenario.Entry answer, List<List<Scenario.Line>> accept) {
 
         public LocalDate date() {
             return answer.date();

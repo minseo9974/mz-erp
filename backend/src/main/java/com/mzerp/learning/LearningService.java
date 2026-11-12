@@ -1,9 +1,11 @@
 package com.mzerp.learning;
 
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -28,7 +30,7 @@ import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
- * 실습의 유스케이스: 과정 시작 · 미션 시작 · 결재 요청(채점) · 힌트 · 정답 대신 처리.
+ * 실습의 유스케이스: 과정 시작 · 미션 시작 · 결재 요청(채점) · 힌트 · 정답 대신 처리 · 다시 보기 · 다시 풀기.
  * <p>
  * 미션 하나의 흐름 (ADR-0013):
  * <ol>
@@ -44,6 +46,8 @@ public class LearningService {
 
     private static final JsonMapper JSON = JsonMapper.builder().build();
     private static final TypeReference<Map<String, Long>> BASELINE_TYPE = new TypeReference<>() {
+    };
+    private static final TypeReference<List<Grader.Finding>> FINDINGS_TYPE = new TypeReference<>() {
     };
 
     private final EnrollmentRepository enrollments;
@@ -74,10 +78,12 @@ public class LearningService {
     // ------------------------------------------------------------------ 응답 모델
 
     /**
-     * @param status    NOT_STARTED · IN_PROGRESS · PASSED · REVEALED
-     * @param attemptId 시작한 적이 있으면 그 시도의 id
+     * @param status            NOT_STARTED · IN_PROGRESS · PASSED · REVEALED (본 시도의 상태)
+     * @param attemptId         시작한 적이 있으면 본 시도의 id
+     * @param practiceAttemptId 지금 다시 풀고 있으면 그 연습 시도의 id
      */
-    public record MissionView(String key, String title, String brief, LocalDate date, String status, Long attemptId) {
+    public record MissionView(String key, String title, String brief, LocalDate date, String status, Long attemptId,
+                              Long practiceAttemptId) {
     }
 
     public record ChapterView(String key, String title, List<MissionView> missions) {
@@ -86,9 +92,31 @@ public class LearningService {
     public record EnrollmentView(Long id, Long companyId, String courseKey, String courseTitle, List<ChapterView> chapters) {
     }
 
-    /** @param hints 지금까지 연 힌트 */
+    /**
+     * @param practice 끝낸 미션을 다시 푸는 연습인가
+     * @param hints    지금까지 연 힌트
+     */
     public record AttemptView(Long id, String missionKey, String title, String brief, LocalDate date, String status,
-                              List<String> hints, int hintsRemaining, int submissions) {
+                              boolean practice, List<String> hints, int hintsRemaining, int submissions) {
+    }
+
+    /** 정답 분개의 한 줄. 코드만으로는 읽기 어려우니 이름을 함께 준다 */
+    public record AnswerLine(String side, String accountCode, String accountName, String partnerName, long amount) {
+    }
+
+    /**
+     * 끝낸 미션 다시 보기.
+     *
+     * @param status      PASSED · REVEALED
+     * @param submissions 본 시도에서 결재를 요청한 횟수
+     * @param rejections  본 시도에서 반려될 때마다 받은 사유 (요청 순서대로)
+     * @param practices   다시 풀기를 끝낸 횟수
+     * @param practiceAttemptId 지금 다시 풀고 있으면 그 연습 시도의 id
+     */
+    public record ReviewView(String key, String title, String chapterTitle, String brief, LocalDate date, String status,
+                             Instant finishedAt, List<AnswerLine> answer, String explanation, List<String> hints,
+                             int hintsUsed, int submissions, List<List<String>> rejections, int practices,
+                             Long practiceAttemptId) {
     }
 
     public record SubmitResult(boolean passed, List<Grader.Finding> findings, AttemptView attempt) {
@@ -137,32 +165,86 @@ public class LearningService {
         Course course = catalog.get(enrollment.getCourseKey());
         Course.Mission mission = mission(enrollment, missionKey);
 
-        var existing = attempts.findByEnrollmentIdAndMissionKey(enrollmentId, mission.key());
+        var existing = attempts.findByEnrollmentIdAndMissionKeyAndPracticeFalse(enrollmentId, mission.key());
         if (existing.isPresent()) {
-            existing.get().requireInProgress(); // 끝난 미션은 다시 시작하지 않는다 (다시 하기는 장 단위로)
+            existing.get().requireInProgress(); // 끝난 미션은 다시 시작하지 않는다 — 다시 풀기는 retry (연습)
             return view(existing.get(), mission);
         }
-        attempts.findByEnrollmentIdAndStatus(enrollmentId, MissionAttempt.Status.IN_PROGRESS).ifPresent(other -> {
-            throw new ApiException(ErrorCode.MISSION_IN_PROGRESS,
-                    "'" + mission(enrollment, other.getMissionKey()).title() + "' 미션이 진행 중입니다");
-        });
-        Map<String, MissionAttempt.Status> done = attempts.findByEnrollmentId(enrollmentId).stream()
-                .collect(Collectors.toMap(MissionAttempt::getMissionKey, MissionAttempt::getStatus));
+        requireNothingInProgress(enrollment);
+        Set<String> done = attempts.findByEnrollmentId(enrollmentId).stream()
+                .filter(a -> !a.isPractice())
+                .map(MissionAttempt::getMissionKey)
+                .collect(Collectors.toSet());
         course.missions().stream()
                 .takeWhile(m -> !m.key().equals(mission.key()))
-                .filter(m -> !done.containsKey(m.key()))
+                .filter(m -> !done.contains(m.key()))
                 .findFirst()
                 .ifPresent(previous -> {
                     throw new ApiException(ErrorCode.MISSION_LOCKED, "'" + previous.title() + "' 미션을 먼저 끝내세요");
                 });
-        List<JournalService.EntryView> leftover = drafts(enrollment.getCompanyId(), course);
-        if (!leftover.isEmpty()) {
-            throw new ApiException(ErrorCode.MISSION_DRAFTS_LEFT, "임시 전표 " + leftover.size() + "장("
-                    + leftover.stream().map(d -> d.entryDate() + " " + d.entryNo()).collect(Collectors.joining(", "))
-                    + ")이 남아 있어요. 일반전표 입력 화면에서 지운 뒤 미션을 시작하세요");
+        requireNoDrafts(enrollment, course);
+        return view(attempts.save(newAttempt(enrollment, mission, false)), mission);
+    }
+
+    /**
+     * 끝낸 미션을 다시 푼다 (연습).
+     * <p>
+     * 그 거래는 이미 장부에 전기되어 있다. 다시 푼 전표까지 전기하면 같은 거래가 두 번 기록되므로, 연습은 채점만 하고
+     * 통과하든 그만두든 연습으로 쓴 임시 전표는 지운다 — 장부는 연습 전과 같다.
+     * 채점 방식은 본 시도와 같다: 지금 잔액을 저장해 두고, 임시 전표가 만들 변화를 정답과 비교한다.
+     */
+    @Transactional
+    public AttemptView retry(Long userId, Long enrollmentId, String missionKey) {
+        Enrollment enrollment = load(userId, enrollmentId);
+        Course course = catalog.get(enrollment.getCourseKey());
+        Course.Mission mission = mission(enrollment, missionKey);
+        finishedOriginal(enrollment, mission);
+
+        var practicing = attempts.findByEnrollmentIdAndMissionKeyOrderById(enrollmentId, mission.key()).stream()
+                .filter(a -> a.isPractice() && a.isInProgress())
+                .findFirst();
+        if (practicing.isPresent()) {
+            return view(practicing.get(), mission);
         }
-        String baseline = JSON.writeValueAsString(Balances.encode(postedBalances(enrollment.getCompanyId())));
-        return view(attempts.save(new MissionAttempt(enrollmentId, enrollment.getCompanyId(), mission.key(), baseline)), mission);
+        requireNothingInProgress(enrollment);
+        requireNoDrafts(enrollment, course);
+        return view(attempts.save(newAttempt(enrollment, mission, true)), mission);
+    }
+
+    /**
+     * 끝낸 미션 다시 보기: 정답 분개, 해설, 내가 반려됐던 사유.
+     * 정답이 들어 있으므로 본 시도를 끝낸(통과했거나 정답을 보고 넘어간) 뒤에만 볼 수 있다.
+     */
+    @Transactional(readOnly = true)
+    public ReviewView review(Long userId, Long enrollmentId, String missionKey) {
+        Enrollment enrollment = load(userId, enrollmentId);
+        Course course = catalog.get(enrollment.getCourseKey());
+        Course.Mission mission = mission(enrollment, missionKey);
+        MissionAttempt original = finishedOriginal(enrollment, mission);
+
+        Map<String, String> accountNames = accounts.findByCompanyIdOrderByCode(enrollment.getCompanyId()).stream()
+                .collect(Collectors.toMap(a -> a.getCode(), a -> a.getName()));
+        Map<String, String> partnerNames = course.scenario().partners().stream()
+                .collect(Collectors.toMap(Scenario.PartnerSeed::code, Scenario.PartnerSeed::name));
+        List<AnswerLine> answer = mission.answer().lines().stream()
+                .map(l -> new AnswerLine(l.side().name(), l.accountCode(), accountNames.getOrDefault(l.accountCode(), l.accountCode()),
+                        l.partnerCode() == null ? null : partnerNames.getOrDefault(l.partnerCode(), l.partnerCode()), l.amount()))
+                .toList();
+        List<List<String>> rejections = submissions.findByAttemptIdOrderById(original.getId()).stream()
+                .filter(s -> !s.isPassed())
+                .map(s -> JSON.readValue(s.getFindings(), FINDINGS_TYPE).stream().map(Grader.Finding::message).toList())
+                .toList();
+        List<MissionAttempt> practices = attempts.findByEnrollmentIdAndMissionKeyOrderById(enrollmentId, mission.key()).stream()
+                .filter(MissionAttempt::isPractice)
+                .toList();
+        String chapterTitle = course.chapters().stream().filter(c -> c.key().equals(mission.chapterKey()))
+                .map(Course.Chapter::title).findFirst().orElse("");
+
+        return new ReviewView(mission.key(), mission.title(), chapterTitle, mission.brief(), mission.date(),
+                original.getStatus().name(), original.getFinishedAt(), answer, mission.explanation(), mission.hints(),
+                Math.min(original.getHintsUsed(), mission.hints().size()), original.getSubmissions(), rejections,
+                (int) practices.stream().filter(a -> !a.isInProgress()).count(),
+                practices.stream().filter(MissionAttempt::isInProgress).map(MissionAttempt::getId).findFirst().orElse(null));
     }
 
     @Transactional(readOnly = true)
@@ -171,7 +253,7 @@ public class LearningService {
         return view(attempt, mission(attempt));
     }
 
-    /** 결재 요청 = 채점. 통과하면 팀장이 임시 전표를 전기한다. */
+    /** 결재 요청 = 채점. 통과하면 팀장이 임시 전표를 전기한다. 연습이면 전기하지 않고 그 전표를 지운다. */
     @Transactional
     public SubmitResult submit(Long userId, Long attemptId) {
         MissionAttempt attempt = loadAttempt(userId, attemptId);
@@ -198,8 +280,13 @@ public class LearningService {
         boolean passed = findings.isEmpty();
         submissions.save(new AttemptSubmission(attempt.getId(), companyId, passed, JSON.writeValueAsString(findings)));
         if (passed) {
-            Long teamLead = sandboxes.teamLeadId();
-            drafts.forEach(d -> journal.post(companyId, d.id(), teamLead));
+            if (attempt.isPractice()) {
+                // 이 거래는 이미 장부에 있다. 또 전기하면 두 번 기록된다
+                drafts.forEach(d -> journal.delete(companyId, d.id()));
+            } else {
+                Long teamLead = sandboxes.teamLeadId();
+                drafts.forEach(d -> journal.post(companyId, d.id(), teamLead));
+            }
             attempt.finish(MissionAttempt.Status.PASSED);
         }
         return new SubmitResult(passed, findings, view(attempt, mission));
@@ -217,6 +304,7 @@ public class LearningService {
     /**
      * 정답 보고 넘어가기: 실습자가 쓰던 임시 전표를 지우고, 시스템이 정답 전표를 작성·전기한다.
      * 막혀서 그만두는 것보다 넘어가서 해설을 읽는 편이 낫다.
+     * 연습에서는 "그만두기"다: 임시 전표만 지운다 (정답 전표는 이미 장부에 있다).
      */
     @Transactional
     public AttemptView reveal(Long userId, Long attemptId) {
@@ -227,12 +315,44 @@ public class LearningService {
         Long companyId = attempt.getCompanyId();
 
         drafts(companyId, course).forEach(d -> journal.delete(companyId, d.id()));
-        replayer.replayTransaction(companyId, sandboxes.teamLeadId(), course.scenario(), mission.answer().no());
+        if (!attempt.isPractice()) {
+            replayer.replayTransaction(companyId, sandboxes.teamLeadId(), course.scenario(), mission.answer().no());
+        }
         attempt.finish(MissionAttempt.Status.REVEALED);
         return view(attempt, mission);
     }
 
     // ------------------------------------------------------------------ 내부
+
+    /** 한 번에 하나만 — 본 시도든 연습이든, 두 미션의 장부 변화가 섞이면 어느 것인지 가를 수 없다 */
+    private void requireNothingInProgress(Enrollment enrollment) {
+        attempts.findByEnrollmentIdAndStatus(enrollment.getId(), MissionAttempt.Status.IN_PROGRESS).ifPresent(other -> {
+            throw new ApiException(ErrorCode.MISSION_IN_PROGRESS,
+                    "'" + mission(enrollment, other.getMissionKey()).title() + "' 미션이 진행 중입니다");
+        });
+    }
+
+    private void requireNoDrafts(Enrollment enrollment, Course course) {
+        List<JournalService.EntryView> leftover = drafts(enrollment.getCompanyId(), course);
+        if (!leftover.isEmpty()) {
+            throw new ApiException(ErrorCode.MISSION_DRAFTS_LEFT, "임시 전표 " + leftover.size() + "장("
+                    + leftover.stream().map(d -> d.entryDate() + " " + d.entryNo()).collect(Collectors.joining(", "))
+                    + ")이 남아 있어요. 일반전표 입력 화면에서 지운 뒤 미션을 시작하세요");
+        }
+    }
+
+    private MissionAttempt newAttempt(Enrollment enrollment, Course.Mission mission, boolean practice) {
+        String baseline = JSON.writeValueAsString(Balances.encode(postedBalances(enrollment.getCompanyId())));
+        return new MissionAttempt(enrollment.getId(), enrollment.getCompanyId(), mission.key(), baseline, practice);
+    }
+
+    /** 끝낸 본 시도. 아직 끝내지 않았으면 409 — 다시 보기에는 정답이 들어 있고, 다시 풀기는 끝낸 뒤의 연습이다 */
+    private MissionAttempt finishedOriginal(Enrollment enrollment, Course.Mission mission) {
+        return attempts.findByEnrollmentIdAndMissionKeyAndPracticeFalse(enrollment.getId(), mission.key())
+                .filter(a -> !a.isInProgress())
+                .orElseThrow(() -> new ApiException(ErrorCode.MISSION_NOT_FINISHED,
+                        "'" + mission.title() + "' 미션을 끝낸 뒤에 볼 수 있어요"));
+    }
 
     /** 정답 분개와 대안 분개 중 하나라도 맞으면 통과. 전부 틀리면 정답 분개 기준의 반려 사유를 돌려준다. */
     private List<Grader.Finding> grade(Course.Mission mission, Map<Balances.Key, Long> actual, Long companyId) {
@@ -297,15 +417,18 @@ public class LearningService {
     }
 
     private EnrollmentView view(Enrollment enrollment, Course course) {
-        Map<String, MissionAttempt> byMission = attempts.findByEnrollmentId(enrollment.getId()).stream()
+        List<MissionAttempt> all = attempts.findByEnrollmentId(enrollment.getId());
+        Map<String, MissionAttempt> byMission = all.stream().filter(a -> !a.isPractice())
                 .collect(Collectors.toMap(MissionAttempt::getMissionKey, Function.identity()));
+        Map<String, Long> practicing = all.stream().filter(a -> a.isPractice() && a.isInProgress())
+                .collect(Collectors.toMap(MissionAttempt::getMissionKey, MissionAttempt::getId));
         List<ChapterView> chapters = course.chapters().stream()
                 .map(c -> new ChapterView(c.key(), c.title(), c.missions().stream()
                         .map(m -> {
                             MissionAttempt attempt = byMission.get(m.key());
                             return new MissionView(m.key(), m.title(), m.brief(), m.date(),
                                     attempt == null ? "NOT_STARTED" : attempt.getStatus().name(),
-                                    attempt == null ? null : attempt.getId());
+                                    attempt == null ? null : attempt.getId(), practicing.get(m.key()));
                         })
                         .toList()))
                 .toList();
@@ -315,7 +438,8 @@ public class LearningService {
     private static AttemptView view(MissionAttempt attempt, Course.Mission mission) {
         int shown = Math.min(attempt.getHintsUsed(), mission.hints().size());
         return new AttemptView(attempt.getId(), mission.key(), mission.title(), mission.brief(), mission.date(),
-                attempt.getStatus().name(), mission.hints().subList(0, shown), mission.hints().size() - shown,
+                attempt.getStatus().name(), attempt.isPractice(), mission.hints().subList(0, shown),
+                mission.hints().size() - shown,
                 attempt.getSubmissions());
     }
 }

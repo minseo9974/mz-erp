@@ -63,7 +63,8 @@ public class CourseCatalog {
                 }
                 Scenario.Entry answer = scenario.transaction(((Number) mission.get("scenario")).intValue());
                 return new Course.Mission(missionKey, chapterKey, text(mission, "title"), text(mission, "brief"),
-                        list(mission.get("hints")).stream().map(String::valueOf).toList(), answer,
+                        list(mission.get("hints")).stream().map(String::valueOf).toList(),
+                        text(mission, "explanation").strip(), answer,
                         list(mission.get("accept")).stream()
                                 .map(alt -> ScenarioLoader.lines(alt, "미션 " + missionKey + " accept")).toList());
             }).toList();
