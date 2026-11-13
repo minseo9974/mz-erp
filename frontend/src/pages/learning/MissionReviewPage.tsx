@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router'
 
 import { ApiError } from '../../api/client'
 import { DeskHeader } from './DeskHeader'
+import { EvidenceList } from './Evidence'
 import { missionPath, useMissionReview, useMyEnrollments, useRetryMission } from './hooks'
 import type { AnswerLine, Enrollment, MissionReview } from './hooks'
 
@@ -74,6 +75,7 @@ function Review({ enrollment, review }: { enrollment: Enrollment; review: Missio
           <div className="muted">김 팀장</div>
           <p>{review.brief}</p>
         </div>
+        <EvidenceList evidence={review.evidence} />
       </section>
 
       <section className="card" aria-labelledby="answer-title">

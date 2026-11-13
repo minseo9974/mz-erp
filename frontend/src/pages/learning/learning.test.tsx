@@ -5,7 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router'
 
 import { DeskPage } from './DeskPage'
-import type { Attempt, Enrollment, MissionReview, MissionStatus } from './hooks'
+import type { Attempt, Enrollment, Evidence, MissionReview, MissionStatus } from './hooks'
 import { MissionPanel } from './MissionPanel'
 import { MissionReviewPage } from './MissionReviewPage'
 
@@ -44,6 +44,7 @@ const attempt = (patch: Partial<Attempt> = {}): Attempt => ({
   date: '2026-01-10',
   status: 'IN_PROGRESS',
   practice: false,
+  evidence: [],
   hints: [],
   hintsRemaining: 2,
   submissions: 0,
@@ -210,6 +211,66 @@ describe('미션 패널', () => {
   })
 })
 
+describe('증빙', () => {
+  const evidence: Evidence[] = [
+    {
+      type: 'bank',
+      title: '보통예금 거래내역',
+      body: {
+        account: '엠제트은행 보통예금',
+        opening: 30000000,
+        rows: [
+          ['2026-01-10', '국세 근로소득세', 227280, 0, 29772720],
+          ['2026-01-10', '지방소득세', 22720, 0, 29750000],
+        ],
+      },
+    },
+    {
+      type: 'slip',
+      title: '원천세 납부 내역',
+      body: { issuer: '회계팀 정리', items: [['귀속', '2025년 12월 급여']], amount: 250000 },
+    },
+    {
+      type: 'note',
+      title: '받아 둔 약속어음',
+      body: {
+        number: '자가 00260310',
+        amount: 5000000,
+        issuer: '(주)한빛전자',
+        payee: '(주)엠제트전자',
+        issueDate: '2025-12-10',
+        dueDate: '2026-03-10',
+        place: '엠제트은행 본점',
+      },
+    },
+  ]
+
+  it('미션 패널의 자료를 누르면 문서가 열리고, 탭으로 다른 자료로 넘어가고, Esc로 닫힌다', async () => {
+    stubApi({ 'GET /api/v1/learning/attempts/11': attempt({ evidence }) })
+    renderAt('/x', <MissionPanel enrollment={enrollment(['IN_PROGRESS', 'NOT_STARTED'])} />)
+    const user = userEvent.setup()
+
+    await user.click(await screen.findByRole('button', { name: /보통예금 거래내역/ }))
+
+    // 통장 거래내역: 이전 잔액, 출금 두 줄, 마지막 잔액
+    const dialog = screen.getByRole('dialog', { name: '보통예금 거래내역' })
+    expect(dialog).toHaveTextContent('실습용')
+    expect(dialog).toHaveTextContent('이전 잔액30,000,000')
+    expect(screen.getByText('지방소득세').closest('tr')).toHaveTextContent('2026-01-10지방소득세22,72029,750,000')
+
+    await user.click(screen.getByRole('tab', { name: '원천세 납부 내역' }))
+    expect(screen.getByRole('dialog', { name: '원천세 납부 내역' })).toHaveTextContent('250,000원')
+
+    await user.click(screen.getByRole('tab', { name: '받아 둔 약속어음' }))
+    const note = screen.getByRole('dialog', { name: '받아 둔 약속어음' })
+    expect(note).toHaveTextContent('(주)엠제트전자 귀하')
+    expect(note).toHaveTextContent('지급 기일2026-03-10')
+
+    await user.keyboard('{Escape}')
+    expect(screen.queryByRole('dialog')).toBeNull()
+  })
+})
+
 describe('업무 목록', () => {
   it('끝낸 업무는 다시 보기로 가는 링크, 지금 할 업무는 버튼, 아직 열리지 않은 업무는 누를 수 없다', async () => {
     const e = enrollment(['PASSED', 'NOT_STARTED'])
@@ -236,6 +297,7 @@ describe('미션 다시 보기', () => {
     date: '2026-01-10',
     status: 'PASSED',
     finishedAt: '2026-11-11T01:00:00Z',
+    evidence: [],
     answer: [
       { side: 'DEBIT', accountCode: '254', accountName: '예수금', partnerName: null, amount: 250000 },
       { side: 'CREDIT', accountCode: '103', accountName: '보통예금', partnerName: null, amount: 250000 },

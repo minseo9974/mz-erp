@@ -1040,6 +1040,206 @@ a.button:focus-visible {
   }
 }
 
+/* ---------- 실습: 증빙 (미션 패널과 다시 보기에서 연다) */
+.evidence {
+  display: grid;
+  gap: 6px;
+}
+
+.evidence-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.evidence-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.evidence-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 34px;
+  padding: 0 12px 0 6px;
+}
+
+.evidence-item:hover {
+  border-color: var(--accent);
+}
+
+.evidence-item .kind {
+  padding: 1px 7px;
+  border-radius: 4px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.modal.evidence-modal {
+  width: min(680px, 100%);
+  max-height: 88vh;
+  grid-template-rows: auto 1fr;
+  gap: 12px;
+  padding: 16px;
+}
+
+.evidence-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.evidence-tabs .spacer {
+  flex: 1;
+}
+
+.evidence-tabs .tab.active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.doc-scroll {
+  overflow: auto;
+  min-height: 0;
+}
+
+/* 문서: 종이처럼 보이게. 종류가 달라도 같은 틀을 쓴다 */
+.doc {
+  position: relative;
+  display: grid;
+  gap: 10px;
+  padding: 20px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: #fffef9;
+  line-height: 1.6;
+}
+
+.doc h3,
+.doc p {
+  margin: 0;
+}
+
+.doc h3 {
+  font-size: 17px;
+  padding-right: 64px;
+}
+
+.doc-stamp {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  padding: 1px 8px;
+  border: 1px solid var(--danger);
+  border-radius: 4px;
+  color: var(--danger);
+  font-size: 12px;
+  font-weight: 700;
+  transform: rotate(4deg);
+}
+
+.doc-table-wrap {
+  overflow-x: auto;
+}
+
+.doc-table {
+  width: 100%;
+  min-width: 480px;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+
+.doc-table th,
+.doc-table td {
+  padding: 7px 8px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.doc-table th {
+  font-size: 12px;
+  color: var(--muted);
+  border-bottom-color: var(--text);
+}
+
+.doc-table th.money,
+.doc-table td.money {
+  text-align: right;
+}
+
+.doc-table td.out {
+  color: var(--danger);
+}
+
+.doc-table td.in {
+  color: var(--accent);
+}
+
+.doc-items {
+  display: grid;
+  gap: 0;
+  margin: 0;
+  border-top: 1px solid var(--border);
+}
+
+.doc-items div {
+  display: grid;
+  grid-template-columns: 120px 1fr;
+  gap: 12px;
+  padding: 7px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.doc-items dt {
+  color: var(--muted);
+}
+
+.doc-items dd {
+  margin: 0;
+}
+
+.doc-amount {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--text);
+  border-radius: 4px;
+}
+
+.doc-amount strong {
+  font-size: 20px;
+  font-variant-numeric: tabular-nums;
+}
+
+.note-heading {
+  text-align: center;
+  letter-spacing: 0.3em;
+  padding-right: 0 !important;
+}
+
+@media (max-width: 520px) {
+  .doc {
+    padding: 14px;
+  }
+
+  .doc-items div {
+    grid-template-columns: 88px 1fr;
+  }
+}
+
 /* ---------- 실습: 미션 패널 (실습 회사의 ERP 화면 옆) */
 .app.with-mission {
   grid-template-columns: 200px 1fr 320px;

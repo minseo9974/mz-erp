@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link } from 'react-router'
 
 import { ApiError } from '../../api/client'
+import { EvidenceList } from './Evidence'
 import { activeAttemptId, activeMission, reviewPath, useAttempt, useAttemptActions } from './hooks'
 import type { Attempt, Enrollment, Finding } from './hooks'
 
@@ -108,6 +109,7 @@ function ActiveMission({
         <div className="muted">김 팀장 · 거래일 {attempt.date}</div>
         <p>{attempt.brief}</p>
       </div>
+      <EvidenceList evidence={attempt.evidence} />
       {practice ? (
         <p className="muted">
           연습입니다. 이 거래의 전표는 이미 장부에 있으니 목록의 전표는 보지 말고, <strong>거래일</strong>로 새 전표를 작성해
@@ -115,7 +117,8 @@ function ActiveMission({
         </p>
       ) : (
         <p className="muted">
-          일반전표 입력에서 <strong>거래일</strong>로 전표를 작성해 저장(F3)한 뒤 결재를 요청하세요. 맞으면 팀장이 전기합니다.
+          자료를 확인하고, 일반전표 입력에서 <strong>거래일</strong>로 전표를 작성해 저장(F3)한 뒤 결재를 요청하세요. 맞으면 팀장이
+          전기합니다.
         </p>
       )}
 
