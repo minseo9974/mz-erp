@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -64,6 +65,7 @@ public class CourseCatalog {
                 Scenario.Entry answer = scenario.transaction(((Number) mission.get("scenario")).intValue());
                 return new Course.Mission(missionKey, chapterKey, text(mission, "title"), text(mission, "brief"),
                         list(mission.get("hints")).stream().map(String::valueOf).toList(),
+                        list(mission.get("evidence")).stream().map(e -> evidence((Map<?, ?>) e, missionKey)).toList(),
                         text(mission, "explanation").strip(), answer,
                         list(mission.get("accept")).stream()
                                 .map(alt -> ScenarioLoader.lines(alt, "미션 " + missionKey + " accept")).toList());
@@ -71,6 +73,34 @@ public class CourseCatalog {
             return new Course.Chapter(chapterKey, text(chapter, "title"), missions);
         }).toList();
         return new Course(text(root, "key"), ((Number) root.get("version")).intValue(), text(root, "title"), scenario, chapters);
+    }
+
+    /** 증빙의 종류별 필수 항목. 빠지면 화면이 빈 문서를 그리게 되므로 읽을 때 막는다 */
+    private static final Map<String, List<String>> EVIDENCE_FIELDS = Map.of(
+            "bank", List.of("account", "opening", "rows"),
+            "slip", List.of("issuer", "items", "amount"),
+            "note", List.of("number", "amount", "issuer", "payee", "issueDate", "dueDate", "place"));
+
+    private static Course.Evidence evidence(Map<?, ?> raw, String missionKey) {
+        String type = text(raw, "type");
+        List<String> required = EVIDENCE_FIELDS.get(type);
+        if (required == null) {
+            throw new IllegalArgumentException("미션 " + missionKey + ": 모르는 증빙 종류 " + type);
+        }
+        Map<String, Object> body = new LinkedHashMap<>();
+        raw.forEach((k, v) -> {
+            if (!"type".equals(k) && !"title".equals(k)) {
+                body.put(String.valueOf(k), v);
+            }
+        });
+        for (String field : required) {
+            if (!body.containsKey(field)) {
+                throw new IllegalArgumentException("미션 " + missionKey + " 증빙(" + type + ")에 " + field + " 값이 없습니다");
+            }
+        }
+        Course.Evidence evidence = new Course.Evidence(type, text(raw, "title"), body);
+        evidence.bankRows(); // 통장 줄의 모양(일자, 적요, 출금, 입금, 잔액)이 틀리면 여기서 드러난다
+        return evidence;
     }
 
     private static List<?> list(Object value) {

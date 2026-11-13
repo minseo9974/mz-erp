@@ -34,6 +34,29 @@ export interface Enrollment {
   chapters: Chapter[]
 }
 
+/** 증빙: 실습자가 전표를 쓰기 전에 보는 자료. 종류마다 내용의 모양이 다르다 (data/course의 evidence) */
+export interface BankEvidence {
+  type: 'bank'
+  title: string
+  /** rows: [거래일, 적요, 출금, 입금, 잔액] */
+  body: { account: string; opening: number; rows: [string, string, number, number, number][] }
+}
+
+export interface SlipEvidence {
+  type: 'slip'
+  title: string
+  /** items: [항목, 내용] */
+  body: { issuer: string; items: [string, string][]; amount: number }
+}
+
+export interface NoteEvidence {
+  type: 'note'
+  title: string
+  body: { number: string; amount: number; issuer: string; payee: string; issueDate: string; dueDate: string; place: string }
+}
+
+export type Evidence = BankEvidence | SlipEvidence | NoteEvidence
+
 export interface Attempt {
   id: number
   missionKey: string
@@ -43,6 +66,7 @@ export interface Attempt {
   status: Exclude<MissionStatus, 'NOT_STARTED'>
   /** 끝낸 미션을 다시 푸는 연습: 채점만 하고 장부에는 반영하지 않는다 */
   practice: boolean
+  evidence: Evidence[]
   hints: string[]
   hintsRemaining: number
   submissions: number
@@ -76,6 +100,7 @@ export interface MissionReview {
   date: string
   status: 'PASSED' | 'REVEALED'
   finishedAt: string
+  evidence: Evidence[]
   answer: AnswerLine[]
   explanation: string
   hints: string[]

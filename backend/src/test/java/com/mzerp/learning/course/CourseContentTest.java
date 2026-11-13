@@ -3,6 +3,8 @@ package com.mzerp.learning.course;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.util.List;
+
 import com.mzerp.common.error.ApiException;
 import com.mzerp.journal.Side;
 
@@ -37,6 +39,43 @@ class CourseContentTest {
             long debit = m.answer().lines().stream().filter(l -> l.side() == Side.DEBIT).mapToLong(l -> l.amount()).sum();
             long credit = m.answer().lines().stream().filter(l -> l.side() == Side.CREDIT).mapToLong(l -> l.amount()).sum();
             assertThat(debit).as(m.key() + " 차대").isEqualTo(credit).isPositive();
+        }
+    }
+
+    @Test
+    @DisplayName("모든 미션에 통장 거래내역이 있고, 그 입출금과 잔액이 정답 분개를 차례로 전기한 보통예금 장부와 같다")
+    void bankStatementsAgreeWithTheLedger() {
+        long ledger = course.scenario().opening().lines().stream()
+                .filter(l -> l.accountCode().equals("103"))
+                .mapToLong(l -> l.side() == Side.DEBIT ? l.amount() : -l.amount()).sum();
+        for (Course.Mission m : course.missions()) {
+            List<Course.Evidence.BankRow> rows = m.evidence().stream().flatMap(e -> e.bankRows().stream()).toList();
+            assertThat(rows).as(m.key() + " 통장 거래내역").isNotEmpty();
+            long opening = ((Number) m.evidence().stream().filter(e -> e.type().equals("bank")).findFirst().orElseThrow()
+                    .body().get("opening")).longValue();
+            assertThat(opening).as(m.key() + " 이전 잔액").isEqualTo(ledger);
+
+            long running = opening;
+            for (Course.Evidence.BankRow row : rows) {
+                assertThat(row.date()).as(m.key() + " 거래일").isEqualTo(m.date().toString());
+                running += row.in() - row.out();
+                assertThat(row.balance()).as(m.key() + " " + row.memo() + " 잔액").isEqualTo(running);
+            }
+            // 통장에서 움직인 돈 = 정답 분개가 보통예금에 만드는 변화
+            ledger += m.answer().lines().stream().filter(l -> l.accountCode().equals("103"))
+                    .mapToLong(l -> l.side() == Side.DEBIT ? l.amount() : -l.amount()).sum();
+            assertThat(running).as(m.key() + " 통장 잔액과 장부 잔액").isEqualTo(ledger);
+        }
+    }
+
+    @Test
+    @DisplayName("증빙의 금액은 거래 금액과 같다: 영수증·어음의 금액 = 정답 분개의 차변 합계")
+    void evidenceAmountsMatchTheTransaction() {
+        for (Course.Mission m : course.missions()) {
+            long amount = m.answer().lines().stream().filter(l -> l.side() == Side.DEBIT).mapToLong(l -> l.amount()).sum();
+            assertThat(m.evidence()).as(m.key() + " 증빙").hasSizeGreaterThanOrEqualTo(2);
+            m.evidence().stream().filter(e -> !e.type().equals("bank")).forEach(e ->
+                    assertThat(((Number) e.body().get("amount")).longValue()).as(m.key() + " " + e.title()).isEqualTo(amount));
         }
     }
 

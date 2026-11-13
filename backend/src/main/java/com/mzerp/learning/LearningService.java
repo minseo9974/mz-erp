@@ -94,10 +94,12 @@ public class LearningService {
 
     /**
      * @param practice 끝낸 미션을 다시 푸는 연습인가
+     * @param evidence 증빙 (통장 거래내역, 영수증, 어음)
      * @param hints    지금까지 연 힌트
      */
     public record AttemptView(Long id, String missionKey, String title, String brief, LocalDate date, String status,
-                              boolean practice, List<String> hints, int hintsRemaining, int submissions) {
+                              boolean practice, List<Course.Evidence> evidence, List<String> hints, int hintsRemaining,
+                              int submissions) {
     }
 
     /** 정답 분개의 한 줄. 코드만으로는 읽기 어려우니 이름을 함께 준다 */
@@ -114,7 +116,8 @@ public class LearningService {
      * @param practiceAttemptId 지금 다시 풀고 있으면 그 연습 시도의 id
      */
     public record ReviewView(String key, String title, String chapterTitle, String brief, LocalDate date, String status,
-                             Instant finishedAt, List<AnswerLine> answer, String explanation, List<String> hints,
+                             Instant finishedAt, List<Course.Evidence> evidence, List<AnswerLine> answer,
+                             String explanation, List<String> hints,
                              int hintsUsed, int submissions, List<List<String>> rejections, int practices,
                              Long practiceAttemptId) {
     }
@@ -241,7 +244,8 @@ public class LearningService {
                 .map(Course.Chapter::title).findFirst().orElse("");
 
         return new ReviewView(mission.key(), mission.title(), chapterTitle, mission.brief(), mission.date(),
-                original.getStatus().name(), original.getFinishedAt(), answer, mission.explanation(), mission.hints(),
+                original.getStatus().name(), original.getFinishedAt(), mission.evidence(), answer,
+                mission.explanation(), mission.hints(),
                 Math.min(original.getHintsUsed(), mission.hints().size()), original.getSubmissions(), rejections,
                 (int) practices.stream().filter(a -> !a.isInProgress()).count(),
                 practices.stream().filter(MissionAttempt::isInProgress).map(MissionAttempt::getId).findFirst().orElse(null));
@@ -438,7 +442,7 @@ public class LearningService {
     private static AttemptView view(MissionAttempt attempt, Course.Mission mission) {
         int shown = Math.min(attempt.getHintsUsed(), mission.hints().size());
         return new AttemptView(attempt.getId(), mission.key(), mission.title(), mission.brief(), mission.date(),
-                attempt.getStatus().name(), attempt.isPractice(), mission.hints().subList(0, shown),
+                attempt.getStatus().name(), attempt.isPractice(), mission.evidence(), mission.hints().subList(0, shown),
                 mission.hints().size() - shown,
                 attempt.getSubmissions());
     }

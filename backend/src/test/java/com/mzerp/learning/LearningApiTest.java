@@ -262,6 +262,11 @@ class LearningApiTest extends IntegrationTest {
 
         mvc.perform(get("/api/v1/learning/attempts/" + attemptId).session(learner))
                 .andExpect(jsonPath("$.date").value("2026-02-25"))
+                // 증빙: 통장 거래내역과 입금 통지
+                .andExpect(jsonPath("$.evidence", hasSize(2)))
+                .andExpect(jsonPath("$.evidence[0].type").value("bank"))
+                .andExpect(jsonPath("$.evidence[0].body.rows[0][3]").value(12_000_000))
+                .andExpect(jsonPath("$.evidence[1].title").value("입금 통지"))
                 .andExpect(jsonPath("$.hints", hasSize(0)))
                 .andExpect(jsonPath("$.hintsRemaining").value(2));
         attemptAction(attemptId, "hint").andExpect(jsonPath("$.hints", hasSize(1))).andExpect(jsonPath("$.hintsRemaining").value(1));
@@ -327,6 +332,7 @@ class LearningApiTest extends IntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.title").value("미지급금 지급"))
                 .andExpect(jsonPath("$.chapterTitle").value("전표의 기본"))
+                .andExpect(jsonPath("$.evidence[1].title").value("이체 확인증"))
                 .andExpect(jsonPath("$.answer", hasSize(2)))
                 .andExpect(jsonPath("$.answer[0].side").value("DEBIT"))
                 .andExpect(jsonPath("$.answer[0].accountName").value("미지급금"))
