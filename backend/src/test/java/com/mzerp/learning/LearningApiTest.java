@@ -122,7 +122,7 @@ class LearningApiTest extends IntegrationTest {
                 .andExpect(jsonPath("$.courseTitle").value("회계팀 첫 1년"))
                 .andExpect(jsonPath("$.chapters[0].missions", hasSize(6)))
                 .andExpect(jsonPath("$.chapters[0].missions[0].status").value("NOT_STARTED"))
-                .andExpect(jsonPath("$.chapters[0].missions[0].date").value("2026-01-10"));
+                .andExpect(jsonPath("$.chapters[0].missions[0].date").value("2026-01-12"));
         mvc.perform(get("/api/v1/learning/enrollments").session(learner))
                 .andExpect(jsonPath("$", hasSize(1)))
                 .andExpect(jsonPath("$[0].id").value(enrollmentId));
@@ -163,13 +163,13 @@ class LearningApiTest extends IntegrationTest {
                 .andExpect(jsonPath("$.findings[0].type").value("NO_ENTRY"));
 
         // (차) 보통예금 / (대) 예수금 — 거꾸로
-        Long entryId = createDraft(entryBody("2026-01-10", line("DEBIT", "103", null, 250_000), line("CREDIT", "254", null, 250_000)));
+        Long entryId = createDraft(entryBody("2026-01-12", line("DEBIT", "103", null, 250_000), line("CREDIT", "254", null, 250_000)));
         attemptAction(attemptId, "submit")
                 .andExpect(jsonPath("$.passed").value(false))
                 .andExpect(jsonPath("$.findings[0].type").value("SIDE_SWAPPED"));
 
-        // 분개는 맞지만 전표 일자가 거래일(1월 10일)이 아니다
-        updateDraft(entryId, 0, entryBody("2026-01-12", line("DEBIT", "254", null, 250_000), line("CREDIT", "103", null, 250_000)));
+        // 분개는 맞지만 전표 일자가 거래일(1월 12일)이 아니다
+        updateDraft(entryId, 0, entryBody("2026-01-13", line("DEBIT", "254", null, 250_000), line("CREDIT", "103", null, 250_000)));
         String rejected = attemptAction(attemptId, "submit")
                 .andExpect(jsonPath("$.passed").value(false))
                 .andExpect(jsonPath("$.findings[0].type").value("WRONG_DATE"))
@@ -180,7 +180,7 @@ class LearningApiTest extends IntegrationTest {
         Number version = JsonPath.read(mvc.perform(get(entries() + "/" + entryId).session(learner)).andReturn()
                 .getResponse().getContentAsString(), "$.version");
         // 날짜를 바꾸면 그 날짜의 새 번호를 받는다
-        updateDraft(entryId, version.intValue(), entryBody("2026-01-10", line("DEBIT", "254", null, 250_000), line("CREDIT", "103", null, 250_000)));
+        updateDraft(entryId, version.intValue(), entryBody("2026-01-12", line("DEBIT", "254", null, 250_000), line("CREDIT", "103", null, 250_000)));
         attemptAction(attemptId, "submit")
                 .andExpect(jsonPath("$.passed").value(true))
                 .andExpect(jsonPath("$.findings", hasSize(0)))
@@ -201,7 +201,7 @@ class LearningApiTest extends IntegrationTest {
     @DisplayName("실습자는 자기 전표를 직접 전기할 수 없다 (403) — 전기는 결재를 통과해야 일어난다")
     void learnerCannotPostDirectly() throws Exception {
         start("withholding-tax-payment");
-        Long entryId = createDraft(entryBody("2026-01-10", line("DEBIT", "254", null, 250_000), line("CREDIT", "103", null, 250_000)));
+        Long entryId = createDraft(entryBody("2026-01-12", line("DEBIT", "254", null, 250_000), line("CREDIT", "103", null, 250_000)));
 
         mvc.perform(post(entries() + "/" + entryId + "/post").session(learner).with(xsrf())).andExpect(status().isForbidden());
     }
@@ -305,9 +305,9 @@ class LearningApiTest extends IntegrationTest {
     private void passWithholdingTax() throws Exception {
         Long attemptId = start("withholding-tax-payment");
         attemptAction(attemptId, "hint");
-        Long entryId = createDraft(entryBody("2026-01-10", line("DEBIT", "103", null, 250_000), line("CREDIT", "254", null, 250_000)));
+        Long entryId = createDraft(entryBody("2026-01-12", line("DEBIT", "103", null, 250_000), line("CREDIT", "254", null, 250_000)));
         attemptAction(attemptId, "submit").andExpect(jsonPath("$.passed").value(false));
-        updateDraft(entryId, 0, entryBody("2026-01-10", line("DEBIT", "254", null, 250_000), line("CREDIT", "103", null, 250_000)));
+        updateDraft(entryId, 0, entryBody("2026-01-12", line("DEBIT", "254", null, 250_000), line("CREDIT", "103", null, 250_000)));
         attemptAction(attemptId, "submit").andExpect(jsonPath("$.passed").value(true));
     }
 
@@ -383,11 +383,11 @@ class LearningApiTest extends IntegrationTest {
                 .andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("MISSION_IN_PROGRESS"));
 
         attemptAction(practiceId, "submit").andExpect(jsonPath("$.findings[0].type").value("NO_ENTRY"));
-        Long entryId = createDraft(entryBody("2026-01-10", line("DEBIT", "817", null, 250_000), line("CREDIT", "103", null, 250_000)));
+        Long entryId = createDraft(entryBody("2026-01-12", line("DEBIT", "817", null, 250_000), line("CREDIT", "103", null, 250_000)));
         attemptAction(practiceId, "submit")
                 .andExpect(jsonPath("$.passed").value(false))
                 .andExpect(jsonPath("$.findings[0].type").value("WRONG_ACCOUNT"));
-        updateDraft(entryId, 0, entryBody("2026-01-10", line("DEBIT", "254", null, 250_000), line("CREDIT", "103", null, 250_000)));
+        updateDraft(entryId, 0, entryBody("2026-01-12", line("DEBIT", "254", null, 250_000), line("CREDIT", "103", null, 250_000)));
         attemptAction(practiceId, "submit")
                 .andExpect(jsonPath("$.passed").value(true))
                 .andExpect(jsonPath("$.attempt.status").value("PASSED"));
@@ -419,7 +419,7 @@ class LearningApiTest extends IntegrationTest {
         String json = mvc.perform(post(mission("withholding-tax-payment", "retry")).session(learner).with(xsrf()))
                 .andReturn().getResponse().getContentAsString();
         Long practiceId = ((Number) JsonPath.read(json, "$.id")).longValue();
-        createDraft(entryBody("2026-01-10", line("DEBIT", "817", null, 250_000), line("CREDIT", "103", null, 250_000)));
+        createDraft(entryBody("2026-01-12", line("DEBIT", "817", null, 250_000), line("CREDIT", "103", null, 250_000)));
 
         attemptAction(practiceId, "reveal").andExpect(status().isOk()).andExpect(jsonPath("$.status").value("REVEALED"));
 
@@ -549,12 +549,12 @@ class LearningApiTest extends IntegrationTest {
         Long wrongEntry = ((Number) JsonPath.read(
                 mvc.perform(post("/api/v1/companies/" + firstCompanyId + "/journal-entries")
                                 .session(learner).with(xsrf()).contentType(MediaType.APPLICATION_JSON)
-                                .content(entryBody("2026-01-10", line("DEBIT", "103", null, 250_000), line("CREDIT", "254", null, 250_000))))
+                                .content(entryBody("2026-01-12", line("DEBIT", "103", null, 250_000), line("CREDIT", "254", null, 250_000))))
                         .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString(), "$.id")).longValue();
         attemptAction(m1Attempt, "submit").andExpect(jsonPath("$.passed").value(false));
         mvc.perform(put("/api/v1/companies/" + firstCompanyId + "/journal-entries/" + wrongEntry)
                         .session(learner).with(xsrf()).contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"version\":0," + entryBody("2026-01-10",
+                        .content("{\"version\":0," + entryBody("2026-01-12",
                                 line("DEBIT", "254", null, 250_000), line("CREDIT", "103", null, 250_000)).substring(1)))
                 .andExpect(status().isOk());
         attemptAction(m1Attempt, "submit").andExpect(jsonPath("$.passed").value(true));
@@ -616,7 +616,7 @@ class LearningApiTest extends IntegrationTest {
                         .andReturn().getResponse().getContentAsString(), "$.id")).longValue();
         mvc.perform(post("/api/v1/companies/" + secondCompanyId + "/journal-entries")
                         .session(learner).with(xsrf()).contentType(MediaType.APPLICATION_JSON)
-                        .content(entryBody("2026-01-10", line("DEBIT", "254", null, 250_000), line("CREDIT", "103", null, 250_000))))
+                        .content(entryBody("2026-01-12", line("DEBIT", "254", null, 250_000), line("CREDIT", "103", null, 250_000))))
                 .andExpect(status().isCreated());
         attemptAction(practiceId, "submit").andExpect(jsonPath("$.passed").value(true));
         assertThat(postedBalanceMap(secondCompanyId)).isEqualTo(expectedCheckpointBalances);

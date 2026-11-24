@@ -30,7 +30,7 @@ const enrollment = (statuses: [MissionStatus, MissionStatus], canRestart = statu
       title: '전표의 기본',
       canRestart,
       missions: [
-        mission('withholding-tax-payment', '원천세 납부', '2026-01-10', statuses[0], statuses[0] === 'NOT_STARTED' ? null : 11),
+        mission('withholding-tax-payment', '원천세 납부', '2026-01-12', statuses[0], statuses[0] === 'NOT_STARTED' ? null : 11),
         mission('accounts-payable-other-payment', '미지급금 지급', '2026-01-15', statuses[1]),
       ],
     },
@@ -42,7 +42,7 @@ const attempt = (patch: Partial<Attempt> = {}): Attempt => ({
   missionKey: 'withholding-tax-payment',
   title: '원천세 납부',
   brief: '작년 12월 급여에서 떼어 둔 세금을 납부했어요.',
-  date: '2026-01-10',
+  date: '2026-01-12',
   status: 'IN_PROGRESS',
   practice: false,
   evidence: [],
@@ -136,7 +136,7 @@ describe('미션 패널', () => {
     renderAt('/x', <MissionPanel enrollment={enrollment(['IN_PROGRESS', 'NOT_STARTED'])} />)
 
     expect(await screen.findByText('작년 12월 급여에서 떼어 둔 세금을 납부했어요.')).toBeInTheDocument()
-    expect(screen.getByText(/거래일 2026-01-10/)).toBeInTheDocument()
+    expect(screen.getByText(/거래일 2026-01-12/)).toBeInTheDocument()
     await userEvent.setup().click(screen.getByRole('button', { name: '힌트 보기 (2)' }))
 
     expect(await screen.findByText('맡아 둔 돈은 부채예요.')).toBeInTheDocument()
@@ -218,18 +218,18 @@ describe('증빙', () => {
       type: 'bank',
       title: '보통예금 거래내역',
       body: {
-        account: '엠제트은행 보통예금',
+        account: '가나은행 보통예금',
         opening: 30000000,
         rows: [
-          ['2026-01-10', '국세 근로소득세', 227280, 0, 29772720],
-          ['2026-01-10', '지방소득세', 22720, 0, 29750000],
+          ['2026-01-12', '국세 근로소득세', 227280, 0, 29772720],
+          ['2026-01-12', '지방소득세', 22720, 0, 29750000],
         ],
       },
     },
     {
       type: 'slip',
       title: '원천세 납부 내역',
-      body: { issuer: '회계팀 정리', items: [['귀속', '2025년 12월 급여']], amount: 250000 },
+      body: { issuer: '회계팀 정리', items: [['귀속', '2025년 7~12월 급여 (반기별 납부)']], amount: 250000 },
     },
     {
       type: 'note',
@@ -241,7 +241,7 @@ describe('증빙', () => {
         payee: '(주)엠제트전자',
         issueDate: '2025-12-10',
         dueDate: '2026-03-10',
-        place: '엠제트은행 본점',
+        place: '바사은행 본점',
       },
     },
   ]
@@ -257,7 +257,7 @@ describe('증빙', () => {
     const dialog = screen.getByRole('dialog', { name: '보통예금 거래내역' })
     expect(dialog).toHaveTextContent('실습용')
     expect(dialog).toHaveTextContent('이전 잔액30,000,000')
-    expect(screen.getByText('지방소득세').closest('tr')).toHaveTextContent('2026-01-10지방소득세22,72029,750,000')
+    expect(screen.getByText('지방소득세').closest('tr')).toHaveTextContent('2026-01-12지방소득세22,72029,750,000')
 
     await user.click(screen.getByRole('tab', { name: '원천세 납부 내역' }))
     expect(screen.getByRole('dialog', { name: '원천세 납부 내역' })).toHaveTextContent('250,000원')
@@ -347,7 +347,7 @@ describe('미션 다시 보기', () => {
     title: '원천세 납부',
     chapterTitle: '전표의 기본',
     brief: '작년 12월 급여에서 떼어 둔 세금을 납부했어요.',
-    date: '2026-01-10',
+    date: '2026-01-12',
     status: 'PASSED',
     finishedAt: '2026-11-11T01:00:00Z',
     evidence: [],
