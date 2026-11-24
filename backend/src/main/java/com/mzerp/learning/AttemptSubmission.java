@@ -34,16 +34,22 @@ public class AttemptSubmission {
     @Column(nullable = false, updatable = false)
     private String findings;
 
+    /** 제출한 값 (JSON). quiz·lookup처럼 본문으로 답을 보낸 경우에만 채워지고, 전표 미션은 null (ADR-0017) */
+    @Column(name = "submitted_answer", updatable = false)
+    private String submittedAnswer;
+
     protected AttemptSubmission() {
     }
 
-    AttemptSubmission(Long attemptId, Long companyId, boolean passed, String findings) {
+    AttemptSubmission(Long attemptId, Long companyId, boolean passed, String findings, String submittedAnswer) {
         this.attemptId = attemptId;
         this.companyId = companyId;
         this.passed = passed;
         this.findings = findings;
+        this.submittedAnswer = submittedAnswer;
     }
 
     public boolean isPassed() { return passed; }
     public String getFindings() { return findings; }
+    public String getSubmittedAnswer() { return submittedAnswer; }
 }

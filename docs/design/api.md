@@ -268,17 +268,17 @@ POST /api/v1/companies/1/closing/2026/auto-entries
 | --- | --- | --- |
 | POST | `/enrollments` | 과정 시작 `{ "courseKey": "accounting-basics" }` → 실습 회사 생성. 이미 시작했으면 그 수강 |
 | GET | `/enrollments` | 내 수강 목록 (각 수강의 장·미션 목록과 상태 포함). 없으면 빈 배열 |
-| GET | `/enrollments/{id}` | 장·미션 목록과 상태 (`NOT_STARTED` · `IN_PROGRESS` · `PASSED` · `REVEALED`). 다시 푸는 중이면 그 미션에 `practiceAttemptId` |
+| GET | `/enrollments/{id}` | 장·미션 목록과 종류(`kind`)·상태(`NOT_STARTED` · `IN_PROGRESS` · `PASSED` · `REVEALED`). 다시 푸는 중이면 그 미션에 `practiceAttemptId` |
 | POST | `/enrollments/{id}/missions/{key}/start` | 미션 시작 — 지금 장부 잔액을 저장. 409: 다른 미션 진행 중 `MISSION_IN_PROGRESS`, 앞 미션 미완료 `MISSION_LOCKED`, 남은 임시 전표 `MISSION_DRAFTS_LEFT` |
-| GET | `/enrollments/{id}/missions/{key}/review` | 끝낸 미션 다시 보기: 증빙, 정답 분개(계정·거래처 이름 포함), 해설, 힌트 전부, 본 시도의 결재 요청 횟수와 반려 사유, 연습 횟수. 끝내기 전에는 409 `MISSION_NOT_FINISHED` |
+| GET | `/enrollments/{id}/missions/{key}/review` | 끝낸 미션 다시 보기: 종류(`kind`), 증빙, 정답 분개(계정·거래처 이름 포함), 해설, 힌트 전부, 본 시도의 결재 요청 횟수와 반려 사유, 연습 횟수. 끝내기 전에는 409 `MISSION_NOT_FINISHED` |
 | POST | `/enrollments/{id}/missions/{key}/retry` | 끝낸 미션 다시 풀기(연습) → 연습 시도 (`practice: true`). 채점은 같지만 통과해도 전기하지 않고 연습 전표를 지운다. 409: `MISSION_NOT_FINISHED` · `MISSION_IN_PROGRESS` · `MISSION_DRAFTS_LEFT` |
-| GET | `/attempts/{id}` | 미션 시도: 상황, 거래일, 증빙(`evidence: [{ type, title, body }]`), 연 힌트, 제출 횟수, 연습 여부 |
-| POST | `/attempts/{id}/submit` | 결재 요청 → `{ passed, findings: [{ type, message }], attempt }`. 통과하면 팀장이 임시 전표를 전기. (예정) 선택형·값 찾기 미션은 본문으로 답을 보낸다 `{ "answer": ... }` ([ADR-0017](../adr/0017-mission-kinds.md)) |
+| GET | `/attempts/{id}` | 미션 시도: 종류(`kind`), 상황, 거래일, 증빙(`evidence: [{ type, title, body }]`), 연 힌트, 제출 횟수, 연습 여부 |
+| POST | `/attempts/{id}/submit` | 결재 요청 → `{ passed, findings: [{ type, message }], attempt }`. 통과하면 팀장이 임시 전표를 전기. 선택 본문 `{ "answer": ... }`을 받아 제출 기록(`attempt_submission.submitted_answer`)에 남긴다 (`quiz`·`lookup` 채점은 예정, [ADR-0017](../adr/0017-mission-kinds.md)) |
 | POST | `/enrollments/{id}/restart?chapter=` | 그 장부터 다시 — 체크포인트로 새 회차를 만들고 이전 회차는 ABANDONED. 시작한 적 없는 장은 409 `CHAPTER_NOT_STARTED`, 남의 수강은 404 ([ADR-0019](../adr/0019-sandbox-runs-and-purge.md)) |
 | POST | `/attempts/{id}/hint` | 다음 힌트 열기 |
 | POST | `/attempts/{id}/reveal` | 정답 보고 넘어가기 — 쓰던 임시 전표를 지우고 정답 전표를 전기. 연습 시도에서는 '그만두기': 임시 전표만 지운다 |
 
-반려 사유 유형: `NO_ENTRY` · `SIDE_SWAPPED` · `WRONG_PARTNER` · `WRONG_ACCOUNT` · `WRONG_AMOUNT` · `WRONG_DATE` · `UNEXPECTED_CHANGE` ([ADR-0013](../adr/0013-state-based-grading.md)). (예정) 제출이 미션의 오답 예시와 같으면 그 미션 전용 사유를 먼저 돌려준다 ([ADR-0017](../adr/0017-mission-kinds.md))
+반려 사유 유형: `MISTAKE` · `NO_ENTRY` · `SIDE_SWAPPED` · `MISSING_PARTNER` · `WRONG_PARTNER` · `WRONG_ACCOUNT` · `WRONG_AMOUNT` · `WRONG_DATE` · `UNEXPECTED_CHANGE` ([ADR-0013](../adr/0013-state-based-grading.md), [ADR-0017](../adr/0017-mission-kinds.md)). 제출이 미션의 오답 예시와 같으면 `MISTAKE`로 그 미션 전용 사유를 먼저 돌려준다
 
 ## 인증 (회사 경로 밖)
 

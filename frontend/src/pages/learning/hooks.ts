@@ -8,8 +8,11 @@ import { journalKeys } from '../journal/hooks'
 
 export type MissionStatus = 'NOT_STARTED' | 'IN_PROGRESS' | 'PASSED' | 'REVEALED'
 
+export type MissionKind = 'ENTRY' | 'QUIZ' | 'LOOKUP' | 'CORRECTION' | 'RECONCILE' | 'PROCEDURE' | 'BATCH'
+
 export interface MissionSummary {
   key: string
+  kind?: MissionKind
   title: string
   brief: string
   date: string
@@ -62,6 +65,7 @@ export type Evidence = BankEvidence | SlipEvidence | NoteEvidence
 export interface Attempt {
   id: number
   missionKey: string
+  kind?: MissionKind
   title: string
   brief: string
   date: string
@@ -96,6 +100,7 @@ export interface AnswerLine {
 /** 끝낸 미션 다시 보기 */
 export interface MissionReview {
   key: string
+  kind?: MissionKind
   title: string
   chapterTitle: string
   brief: string
@@ -236,7 +241,11 @@ export function useAttemptActions(attemptId: number, companyId: number) {
       client.invalidateQueries({ queryKey: journalKeys.all(companyId) }),
     ])
   const submit = useMutation({
-    mutationFn: () => api<SubmitResult>(`${base}/attempts/${attemptId}/submit`, { method: 'POST' }),
+    mutationFn: (answer?: unknown) =>
+      api<SubmitResult>(`${base}/attempts/${attemptId}/submit`, {
+        method: 'POST',
+        body: answer === undefined ? undefined : { answer },
+      }),
     onSuccess: refresh,
   })
   const hint = useMutation({
