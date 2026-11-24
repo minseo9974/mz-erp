@@ -9,7 +9,7 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 
-/** 수강: 사용자 한 명이 과정 하나를 자기만의 실습 회사에서 진행한다 (ADR-0014). */
+/** 수강: 사용자 한 명이 과정 하나를 진행한다. 실습 회사는 회차(SandboxRun)가 갖는다 (ADR-0014, ADR-0019). */
 @Entity
 @Table(name = "enrollment")
 public class Enrollment {
@@ -20,9 +20,6 @@ public class Enrollment {
 
     @Column(name = "user_id", nullable = false, updatable = false)
     private Long userId;
-
-    @Column(name = "company_id", nullable = false)
-    private Long companyId;
 
     @Column(name = "course_key", nullable = false, updatable = false)
     private String courseKey;
@@ -39,16 +36,14 @@ public class Enrollment {
     protected Enrollment() {
     }
 
-    Enrollment(Long userId, Long companyId, String courseKey, int courseVersion) {
+    Enrollment(Long userId, String courseKey, int courseVersion) {
         this.userId = userId;
-        this.companyId = companyId;
         this.courseKey = courseKey;
         this.courseVersion = courseVersion;
     }
 
     public Long getId() { return id; }
     public Long getUserId() { return userId; }
-    public Long getCompanyId() { return companyId; }
     public String getCourseKey() { return courseKey; }
     public int getCourseVersion() { return courseVersion; }
 }

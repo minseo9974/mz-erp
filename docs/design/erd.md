@@ -83,7 +83,7 @@ erDiagram
 
 | 테이블 | 주요 컬럼 | 규칙 |
 | --- | --- | --- |
-| company | id, name, biz_reg_no, industry, created_at | |
+| company | id, name, biz_reg_no, industry, created_at, disposable(예정) | `disposable`(폐기 가능한 연습·데모 회사)은 만들 때만 정하고 나중에 켤 수 없다 — 회사째 폐기의 유일한 조건 ([ADR-0019](../adr/0019-sandbox-runs-and-purge.md)) |
 | fiscal_year | id, company_id, term_no(기수), start_date, end_date, status(OPEN/CLOSED) | 회사별 기간 겹침 금지 |
 | fiscal_period | id, fiscal_year_id, period_no(1~12), start_date, end_date, status(OPEN/CLOSED), closed_at, closed_by | 마감 단위는 월 |
 
@@ -151,4 +151,7 @@ SAP처럼 승인과 전기를 나누면 "승인됐지만 장부엔 없는 전표
 | 상태 | 수정 | 삭제 | 장부 반영 |
 | --- | --- | --- | --- |
 | DRAFT | 가능 | 가능 | 안 됨 |
+| DRAFT (REVERSAL, 역분개 요청) | 날짜·사유만 — 라인은 원전표의 반대로 고정 | 가능 | 안 됨 |
 | POSTED | 불가 | 불가 | 됨 — 정정은 REVERSAL 전표 |
+
+역분개 요청(작성자)은 임시 REVERSAL 전표로 만들어지고 승인자가 전기한다. 승인자의 즉시 역분개는 만들자마자 전기된다 ([ADR-0018](../adr/0018-reversal-request.md), 예정).

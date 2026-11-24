@@ -19,7 +19,7 @@ const mission = (key: string, title: string, date: string, status: MissionStatus
   practiceAttemptId: null as number | null,
 })
 
-const enrollment = (statuses: [MissionStatus, MissionStatus]): Enrollment => ({
+const enrollment = (statuses: [MissionStatus, MissionStatus], canRestart = statuses[0] !== 'NOT_STARTED'): Enrollment => ({
   id: 3,
   companyId: 7,
   courseKey: 'accounting-basics',
@@ -28,6 +28,7 @@ const enrollment = (statuses: [MissionStatus, MissionStatus]): Enrollment => ({
     {
       key: 'ch1',
       title: '전표의 기본',
+      canRestart,
       missions: [
         mission('withholding-tax-payment', '원천세 납부', '2026-01-10', statuses[0], statuses[0] === 'NOT_STARTED' ? null : 11),
         mission('accounts-payable-other-payment', '미지급금 지급', '2026-01-15', statuses[1]),
@@ -285,6 +286,58 @@ describe('업무 목록', () => {
     expect(screen.queryByRole('link', { name: /외상매출금 회수/ })).toBeNull()
     expect(screen.queryByRole('button', { name: /외상매출금 회수/ })).toBeNull()
     expect(screen.getByText('대기')).toBeInTheDocument()
+  })
+
+  it('시작한 적 없는 장에는 "이 장부터 다시"가 보이지 않고, 시작한 장에서는 앱 안의 확인 창으로 다시 시작한다', async () => {
+    const confirmSpy = vi.spyOn(window, 'confirm')
+    let restarted = false
+    const calls = stubApi({
+      'GET /api/v1/me': ME,
+      'GET /api/v1/learning/enrollments': () => [
+        restarted
+          ? { ...enrollment(['NOT_STARTED', 'NOT_STARTED'], true), companyId: 9 }
+          : enrollment(['PASSED', 'NOT_STARTED'], true),
+      ],
+      'POST /api/v1/learning/enrollments/3/restart?chapter=ch1': () => {
+        restarted = true
+        return { ...enrollment(['NOT_STARTED', 'NOT_STARTED'], true), companyId: 9 }
+      },
+    })
+    renderAt('/desk', <DeskPage />)
+    const user = userEvent.setup()
+
+    // 시작한 장에는 버튼이 보인다
+    await user.click(await screen.findByRole('button', { name: '이 장부터 다시' }))
+    expect(confirmSpy).not.toHaveBeenCalled()
+
+    const dialog = screen.getByRole('dialog', { name: '1장 · 전표의 기본부터 다시 시작할까요?' })
+    expect(dialog).toHaveTextContent('실습 회사가 새로 만들어지고, 지금까지의 기록은 다시 보기에 남아요.')
+
+    // 취소를 누르면 API 호출 없이 닫힌다
+    await user.click(screen.getByRole('button', { name: '취소' }))
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(calls).not.toContain('POST /api/v1/learning/enrollments/3/restart?chapter=ch1')
+
+    // 다시 열어 확인하면 API를 호출하고 진행도가 초기화된다
+    await user.click(screen.getByRole('button', { name: '이 장부터 다시' }))
+    const confirmBtn = screen.getAllByRole('button', { name: '이 장부터 다시' })[1]
+    await user.click(confirmBtn)
+
+    await vi.waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+    expect(calls).toContain('POST /api/v1/learning/enrollments/3/restart?chapter=ch1')
+    expect(screen.getByRole('progressbar', { name: '진행도' })).toHaveAttribute('aria-valuenow', '0')
+    expect(screen.getByRole('link', { name: '실습 회사 장부 둘러보기' })).toHaveAttribute('href', '/companies/9')
+  })
+
+  it('아직 시작하지 않은 장에는 "이 장부터 다시" 버튼이 보이지 않는다', async () => {
+    stubApi({
+      'GET /api/v1/me': ME,
+      'GET /api/v1/learning/enrollments': [enrollment(['NOT_STARTED', 'NOT_STARTED'], false)],
+    })
+    renderAt('/desk', <DeskPage />)
+
+    expect(await screen.findByRole('heading', { name: '업무 목록' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '이 장부터 다시' })).toBeNull()
   })
 })
 

@@ -758,11 +758,49 @@ a.button.primary:hover {
   font-size: 12px;
 }
 
-.chapter-title {
+.chapter-head {
   display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
   justify-content: space-between;
+  gap: 6px 12px;
   margin: 4px 0 8px;
+}
+
+.chapter-title {
+  margin: 0;
   font-size: 13px;
+}
+
+.chapter-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+}
+
+.chapter-restart {
+  font-size: 12px;
+}
+
+.modal.confirm-modal {
+  width: min(440px, 100%);
+  grid-template-rows: auto;
+  gap: 12px;
+  padding: 20px;
+}
+
+.modal.confirm-modal h2,
+.modal.confirm-modal p {
+  margin: 0;
+  line-height: 1.6;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 4px;
 }
 
 .mission-list {

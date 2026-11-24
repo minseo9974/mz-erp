@@ -1,0 +1,69 @@
+# 테스트 전용 2개 장 과정 — 장 다시 시작 시 앞 장 체크포인트 재생·진행도·다시 보기를 검증한다.
+key = "two-chapters-test"
+version = 1
+title = "회차 테스트 과정"
+scenario = "mz-electronics-2026"
+
+[[chapters]]
+key = "ch1"
+title = "1장 기초 거래"
+
+[[chapters.missions]]
+key = "m1-tax"
+scenario = 1
+title = "원천세 납부"
+brief = "원천세를 보통예금으로 납부했어요."
+hints = ["예수금은 부채예요.", "부채 감소는 차변이에요."]
+explanation = '''
+원천세 납부 해설입니다.
+
+흔한 실수: 비용 처리
+
+실무에서는: 매월 10일 납부
+'''
+
+[[chapters.missions]]
+key = "m2-payable-other"
+scenario = 2
+title = "미지급금 지급"
+brief = "미지급금을 보통예금으로 이체했어요."
+hints = ["작년 미지급금이에요.", "거래처를 넣으세요."]
+explanation = '''
+미지급금 지급 해설입니다.
+
+흔한 실수: 거래처 누락
+
+실무에서는: 거래처별 잔액 확인
+'''
+
+[[chapters]]
+key = "ch2"
+title = "2장 채권 회수"
+
+[[chapters.missions]]
+key = "m3-receivable"
+scenario = 5
+title = "외상매출금 회수"
+brief = "한빛전자 외상매출금이 입금됐어요."
+hints = ["매출은 작년에 기록됐어요.", "외상매출금은 자산이에요."]
+explanation = '''
+외상매출금 회수 해설입니다.
+
+흔한 실수: 제품매출로 중복 처리
+
+실무에서는: 채권 반제
+'''
+
+[[chapters.missions]]
+key = "m4-note-maturity"
+scenario = 6
+title = "받을어음 만기"
+brief = "한빛전자 받을어음이 만기 입금됐어요."
+hints = ["받을어음은 자산이에요.", "거래처를 넣으세요."]
+explanation = '''
+받을어음 만기 해설입니다.
+
+흔한 실수: 외상매출금 감소 처리
+
+실무에서는: 만기일 관리
+'''

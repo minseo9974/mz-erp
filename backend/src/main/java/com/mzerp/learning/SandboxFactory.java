@@ -1,5 +1,7 @@
 package com.mzerp.learning;
 
+import java.util.Collection;
+import java.util.List;
 import java.util.UUID;
 
 import com.mzerp.identity.AppUser;
@@ -43,14 +45,29 @@ class SandboxFactory {
         this.replayer = replayer;
     }
 
-    /** @return 새 실습 회사의 id */
+    /** 처음부터 시작하는 실습 회사를 만든다 (기초잔액까지). @return 새 실습 회사의 id */
     @Transactional
     Long create(Long learnerUserId, Scenario scenario) {
+        return createCheckpoint(learnerUserId, scenario, List.of());
+    }
+
+    /**
+     * 체크포인트 실습 회사를 만든다 (ADR-0014, ADR-0019):
+     * 회계연도·거래처·기초잔액을 깔고, 그 장 시작 전까지 재생할 시나리오 거래를 날짜순으로 작성·전기해 둔다.
+     *
+     * @param scenarioTransactionNos 재생할 시나리오 거래 번호 목록 (비어 있으면 기초잔액만)
+     * @return 새 실습 회사의 id
+     */
+    @Transactional
+    Long createCheckpoint(Long learnerUserId, Scenario scenario, Collection<Integer> scenarioTransactionNos) {
         Long teamLead = teamLeadId();
         Long companyId = companies.create(teamLead,
                 new CompanyService.CreateCommand(scenario.companyName(), null, "제조업")).getId();
         roles.save(new UserCompanyRole(learnerUserId, companyId, CompanyRole.WRITER));
         replayer.prepare(companyId, teamLead, scenario);
+        if (!scenarioTransactionNos.isEmpty()) {
+            replayer.replayTransactions(companyId, teamLead, scenario, scenarioTransactionNos);
+        }
         return companyId;
     }
 

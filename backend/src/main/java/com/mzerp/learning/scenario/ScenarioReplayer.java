@@ -1,6 +1,7 @@
 package com.mzerp.learning.scenario;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
 
@@ -62,6 +63,16 @@ public class ScenarioReplayer {
     @Transactional
     public List<Long> replayTransactions(Long companyId, Long userId, Scenario scenario, int upToNo) {
         return replay(companyId, userId, scenario.transactions().stream().filter(e -> e.no() <= upToNo).toList());
+    }
+
+    /** 지정한 시나리오 거래 번호 목록을 날짜순(같은 날이면 번호 순)으로 작성·전기한다 (체크포인트). */
+    @Transactional
+    public List<Long> replayTransactions(Long companyId, Long userId, Scenario scenario, Collection<Integer> transactionNos) {
+        List<Scenario.Entry> selected = transactionNos.stream()
+                .distinct()
+                .map(scenario::transaction)
+                .toList();
+        return replay(companyId, userId, selected);
     }
 
     /** 거래 한 건만 작성·전기한다 (정답 대신 처리). */

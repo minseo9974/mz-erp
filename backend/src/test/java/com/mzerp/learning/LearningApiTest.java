@@ -8,6 +8,9 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.util.Map;
+import java.util.TreeMap;
+
 import com.jayway.jsonpath.JsonPath;
 import com.mzerp.identity.AppUser;
 import com.mzerp.support.IntegrationTest;
@@ -426,5 +429,219 @@ class LearningApiTest extends IntegrationTest {
         assertThat(balance("254", null)).isZero();
         mvc.perform(get("/api/v1/learning/enrollments/" + enrollmentId).session(learner))
                 .andExpect(jsonPath("$.chapters[0].missions[0].status").value("PASSED")); // 본 시도는 통과한 그대로
+    }
+
+    // ------------------------------------------------------------------ 장 다시 시작 · 회차(run)
+
+    private ResultActions enrollCourse(MockHttpSession session, String courseKey) throws Exception {
+        return mvc.perform(post("/api/v1/learning/enrollments").session(session).with(xsrf())
+                .contentType(MediaType.APPLICATION_JSON).content(json("courseKey", courseKey)));
+    }
+
+    private ResultActions restart(MockHttpSession session, Long id, String chapterKey) throws Exception {
+        return mvc.perform(post("/api/v1/learning/enrollments/" + id + "/restart")
+                .param("chapter", chapterKey).session(session).with(xsrf()));
+    }
+
+    private Map<String, Long> postedBalanceMap(Long targetCompanyId) {
+        Map<String, Long> result = new TreeMap<>();
+        jdbc.sql("""
+                        select a.code || '|' || coalesce(p.code, '') as k,
+                               sum(l.debit_amount) - sum(l.credit_amount) as net
+                          from journal_line l
+                          join journal_entry e on e.id = l.entry_id
+                          join account a on a.id = l.account_id
+                          left join partner p on p.id = l.partner_id
+                         where e.company_id = ? and e.status = 'POSTED'
+                         group by a.code, p.code
+                        having sum(l.debit_amount) - sum(l.credit_amount) <> 0
+                        """)
+                .param(targetCompanyId)
+                .query((rs, n) -> result.put(rs.getString("k"), rs.getLong("net")))
+                .list();
+        return result;
+    }
+
+    @Test
+    @DisplayName("장 다시 시작: 새 회사가 생기고 이전 회차·진행 중 시도는 ABANDONED, 옛 회사 전표와 제출 기록은 남는다")
+    void restartCreatesNewRunAndPreservesOldCompanyAndSubmissions() throws Exception {
+        // 아직 1장을 시작하기 전에는 다시 시작할 수 없다 (409)
+        mvc.perform(get("/api/v1/learning/enrollments/" + enrollmentId).session(learner))
+                .andExpect(jsonPath("$.chapters[0].canRestart").value(false));
+        restart(learner, enrollmentId, "ch1")
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("CHAPTER_NOT_STARTED"));
+
+        // 1번 미션 통과, 2번 미션은 오답 제출 1회 + 임시 전표를 남겨 둔 채 진행 중
+        passWithholdingTax();
+        Long inProgressAttemptId = start("accounts-payable-other-payment");
+        Long strayDraftId = createDraft(entryBody("2026-01-15",
+                line("DEBIT", "253", "00603", 1_500_000), line("CREDIT", "103", null, 1_500_000)));
+        attemptAction(inProgressAttemptId, "submit").andExpect(jsonPath("$.passed").value(false));
+
+        Long oldCompanyId = companyId;
+        long oldPostedCount = jdbc.sql("select count(*) from journal_entry where company_id = ? and status = 'POSTED'")
+                .param(oldCompanyId).query(Long.class).single();
+
+        mvc.perform(get("/api/v1/learning/enrollments/" + enrollmentId).session(learner))
+                .andExpect(jsonPath("$.chapters[0].canRestart").value(true));
+
+        String restartedJson = restart(learner, enrollmentId, "ch1")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(enrollmentId))
+                .andExpect(jsonPath("$.chapters[0].missions[0].status").value("NOT_STARTED"))
+                .andExpect(jsonPath("$.chapters[0].missions[1].status").value("NOT_STARTED"))
+                .andReturn().getResponse().getContentAsString();
+        Long newCompanyId = ((Number) JsonPath.read(restartedJson, "$.companyId")).longValue();
+        assertThat(newCompanyId).isNotEqualTo(oldCompanyId);
+
+        // 회차 상태: 이전 회차 ABANDONED(ended_at 채워짐), 새 회차 ACTIVE(ended_at null)
+        assertThat(jdbc.sql("select status from sandbox_run where enrollment_id = ? and company_id = ?")
+                .params(enrollmentId, oldCompanyId).query(String.class).single()).isEqualTo("ABANDONED");
+        assertThat(jdbc.sql("select ended_at is not null from sandbox_run where enrollment_id = ? and company_id = ?")
+                .params(enrollmentId, oldCompanyId).query(Boolean.class).single()).isTrue();
+        assertThat(jdbc.sql("select status from sandbox_run where enrollment_id = ? and company_id = ?")
+                .params(enrollmentId, newCompanyId).query(String.class).single()).isEqualTo("ACTIVE");
+        assertThat(jdbc.sql("select start_chapter from sandbox_run where enrollment_id = ? and company_id = ?")
+                .params(enrollmentId, newCompanyId).query(String.class).single()).isEqualTo("ch1");
+
+        // 이전 회사의 전기 전표와 임시 전표는 그대로 남는다
+        assertThat(jdbc.sql("select count(*) from journal_entry where company_id = ? and status = 'POSTED'")
+                .param(oldCompanyId).query(Long.class).single()).isEqualTo(oldPostedCount);
+        assertThat(jdbc.sql("select status from journal_entry where id = ?")
+                .param(strayDraftId).query(String.class).single()).isEqualTo("DRAFT");
+
+        // 진행 중이던 시도는 ABANDONED, 그 제출 기록은 그대로 남는다
+        assertThat(jdbc.sql("select status from mission_attempt where id = ?")
+                .param(inProgressAttemptId).query(String.class).single()).isEqualTo("ABANDONED");
+        assertThat(jdbc.sql("select finished_at is not null from mission_attempt where id = ?")
+                .param(inProgressAttemptId).query(Boolean.class).single()).isTrue();
+        assertThat(jdbc.sql("select count(*) from attempt_submission where attempt_id = ?")
+                .param(inProgressAttemptId).query(Long.class).single()).isEqualTo(1);
+        attemptAction(inProgressAttemptId, "submit")
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("MISSION_ALREADY_FINISHED"));
+
+        // 새 회사는 1장 시작 전(기초잔액만) 상태이고, 1번 미션을 본 시도 유니크에 걸리지 않고 처음부터 다시 풀 수 있다
+        companyId = newCompanyId;
+        assertThat(balance("103", null)).isEqualTo(30_000_000);
+        assertThat(balance("254", null)).isEqualTo(-250_000);
+        passWithholdingTax();
+        assertThat(balance("254", null)).isZero();
+        assertThat(jdbc.sql("select count(*) from mission_attempt where enrollment_id = ? and mission_key = 'withholding-tax-payment' and not practice")
+                .param(enrollmentId).query(Long.class).single()).isEqualTo(2);
+    }
+
+    @Test
+    @DisplayName("2장부터 다시 시작: 새 회사의 장부 = 기초잔액 + 1장 정답, 1장은 완료·다시 보기·다시 풀기가 유지되고 2장은 처음부터 푼다")
+    void restartAtSecondChapterReplaysPriorChaptersAndPreservesReviews() throws Exception {
+        String enrollJson = enrollCourse(learner, "two-chapters-test")
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        Long twoId = ((Number) JsonPath.read(enrollJson, "$.id")).longValue();
+        Long firstCompanyId = ((Number) JsonPath.read(enrollJson, "$.companyId")).longValue();
+
+        // 1장 완료: m1-tax(힌트 1회 + 반려 1회 후 통과), m2-payable-other(정답 보고 넘어가기)
+        Long m1Attempt = ((Number) JsonPath.read(
+                mvc.perform(post("/api/v1/learning/enrollments/" + twoId + "/missions/m1-tax/start")
+                                .session(learner).with(xsrf()))
+                        .andExpect(status().isOk()).andReturn().getResponse().getContentAsString(), "$.id")).longValue();
+        attemptAction(m1Attempt, "hint").andExpect(status().isOk());
+        Long wrongEntry = ((Number) JsonPath.read(
+                mvc.perform(post("/api/v1/companies/" + firstCompanyId + "/journal-entries")
+                                .session(learner).with(xsrf()).contentType(MediaType.APPLICATION_JSON)
+                                .content(entryBody("2026-01-10", line("DEBIT", "103", null, 250_000), line("CREDIT", "254", null, 250_000))))
+                        .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString(), "$.id")).longValue();
+        attemptAction(m1Attempt, "submit").andExpect(jsonPath("$.passed").value(false));
+        mvc.perform(put("/api/v1/companies/" + firstCompanyId + "/journal-entries/" + wrongEntry)
+                        .session(learner).with(xsrf()).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"version\":0," + entryBody("2026-01-10",
+                                line("DEBIT", "254", null, 250_000), line("CREDIT", "103", null, 250_000)).substring(1)))
+                .andExpect(status().isOk());
+        attemptAction(m1Attempt, "submit").andExpect(jsonPath("$.passed").value(true));
+
+        Long m2Attempt = ((Number) JsonPath.read(
+                mvc.perform(post("/api/v1/learning/enrollments/" + twoId + "/missions/m2-payable-other/start")
+                                .session(learner).with(xsrf()))
+                        .andExpect(status().isOk()).andReturn().getResponse().getContentAsString(), "$.id")).longValue();
+        attemptAction(m2Attempt, "reveal").andExpect(status().isOk());
+
+        // 1장 완료 직후 장부 잔액 (기초잔액 + #1 + #2 정답)
+        Map<String, Long> expectedCheckpointBalances = postedBalanceMap(firstCompanyId);
+
+        // 2장 첫 미션을 시작하기 전에는 2장으로 다시 시작할 수 없다 (409)
+        restart(learner, twoId, "ch2")
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("CHAPTER_NOT_STARTED"));
+
+        // 2장 첫 미션 시작 후 반려 1회 + 임시 전표 남김
+        Long m3Attempt = ((Number) JsonPath.read(
+                mvc.perform(post("/api/v1/learning/enrollments/" + twoId + "/missions/m3-receivable/start")
+                                .session(learner).with(xsrf()))
+                        .andExpect(status().isOk()).andReturn().getResponse().getContentAsString(), "$.id")).longValue();
+        attemptAction(m3Attempt, "submit").andExpect(jsonPath("$.passed").value(false));
+
+        // 2장부터 다시 시작
+        String restarted = restart(learner, twoId, "ch2")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.chapters[0].missions[0].status").value("PASSED"))
+                .andExpect(jsonPath("$.chapters[0].missions[1].status").value("REVEALED"))
+                .andExpect(jsonPath("$.chapters[1].missions[0].status").value("NOT_STARTED"))
+                .andExpect(jsonPath("$.chapters[1].missions[1].status").value("NOT_STARTED"))
+                .andReturn().getResponse().getContentAsString();
+        Long secondCompanyId = ((Number) JsonPath.read(restarted, "$.companyId")).longValue();
+        assertThat(secondCompanyId).isNotEqualTo(firstCompanyId);
+
+        // 새 회차의 장부 잔액 = 기초잔액 + 앞 장(1장) 미션의 정답
+        assertThat(postedBalanceMap(secondCompanyId)).isEqualTo(expectedCheckpointBalances);
+        assertThat(jdbc.sql("select count(*) from journal_entry where company_id = ? and status = 'POSTED'")
+                .param(secondCompanyId).query(Long.class).single()).isEqualTo(3); // 기초잔액 + #1 + #2
+
+        // 앞 장(1장) 미션은 이미 끝낸 것으로 본다: start는 409, review는 이전 회차의 마지막 본 시도 기록을 보여 준다
+        mvc.perform(post("/api/v1/learning/enrollments/" + twoId + "/missions/m1-tax/start")
+                        .session(learner).with(xsrf()))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("MISSION_ALREADY_FINISHED"));
+        mvc.perform(get("/api/v1/learning/enrollments/" + twoId + "/missions/m1-tax/review").session(learner))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("PASSED"))
+                .andExpect(jsonPath("$.hintsUsed").value(1))
+                .andExpect(jsonPath("$.submissions").value(2))
+                .andExpect(jsonPath("$.rejections", hasSize(1)));
+
+        // 앞 장(1장) 미션의 다시 풀기(연습)도 새 회차에서 장부를 건드리지 않고 동작한다
+        Long practiceId = ((Number) JsonPath.read(
+                mvc.perform(post("/api/v1/learning/enrollments/" + twoId + "/missions/m1-tax/retry")
+                                .session(learner).with(xsrf()))
+                        .andExpect(status().isOk()).andExpect(jsonPath("$.practice").value(true))
+                        .andReturn().getResponse().getContentAsString(), "$.id")).longValue();
+        mvc.perform(post("/api/v1/companies/" + secondCompanyId + "/journal-entries")
+                        .session(learner).with(xsrf()).contentType(MediaType.APPLICATION_JSON)
+                        .content(entryBody("2026-01-10", line("DEBIT", "254", null, 250_000), line("CREDIT", "103", null, 250_000))))
+                .andExpect(status().isCreated());
+        attemptAction(practiceId, "submit").andExpect(jsonPath("$.passed").value(true));
+        assertThat(postedBalanceMap(secondCompanyId)).isEqualTo(expectedCheckpointBalances);
+
+        // 2장 첫 미션을 앞 장 잠금 없이 바로 시작하고 통과할 수 있다
+        Long newM3Attempt = ((Number) JsonPath.read(
+                mvc.perform(post("/api/v1/learning/enrollments/" + twoId + "/missions/m3-receivable/start")
+                                .session(learner).with(xsrf()))
+                        .andExpect(status().isOk()).andReturn().getResponse().getContentAsString(), "$.id")).longValue();
+        assertThat(newM3Attempt).isNotEqualTo(m3Attempt);
+        mvc.perform(post("/api/v1/companies/" + secondCompanyId + "/journal-entries")
+                        .session(learner).with(xsrf()).contentType(MediaType.APPLICATION_JSON)
+                        .content(entryBody("2026-02-25", line("DEBIT", "103", null, 12_000_000), line("CREDIT", "108", "00101", 12_000_000))))
+                .andExpect(status().isCreated());
+        attemptAction(newM3Attempt, "submit").andExpect(jsonPath("$.passed").value(true));
+    }
+
+    @Test
+    @DisplayName("남의 수강이나 없는 장으로 다시 시작하려 하면 404")
+    void restartRejectsOthersAndUnknownChapter() throws Exception {
+        start("withholding-tax-payment");
+        AppUser other = createUser("other-restart", PASSWORD, null, null);
+        MockHttpSession otherSession = login(other.getLoginId(), PASSWORD);
+
+        restart(otherSession, enrollmentId, "ch1").andExpect(status().isNotFound());
+        restart(learner, enrollmentId, "no-such-chapter").andExpect(status().isNotFound());
     }
 }
