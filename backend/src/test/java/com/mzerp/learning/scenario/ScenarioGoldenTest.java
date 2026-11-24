@@ -148,6 +148,31 @@ class ScenarioGoldenTest extends IntegrationTest {
         assertThat(noteReceivable("00101")).isZero();
     }
 
+    @Test
+    @DisplayName("번호 목록 재생: 순서를 섞어 넘겨도 날짜·번호 순으로 전기되고 잔액이 정확하다")
+    void replaysSelectedTransactionNumbersInDateOrder() {
+        replayer.prepare(companyId, userId, scenario);
+        List<Long> ids = replayer.replayTransactions(companyId, userId, scenario, List.of(6, 1, 5, 2));
+
+        assertThat(ids).hasSize(4);
+        List<String> dates = jdbc.sql("select entry_date::text from journal_entry where id = any(?) order by id")
+                .param(ids.toArray(Long[]::new))
+                .query(String.class)
+                .list();
+        assertThat(dates).containsExactly("2026-01-10", "2026-01-15", "2026-02-25", "2026-03-10");
+        assertThat(noteReceivable("00101")).isZero();
+        // 기초 30,000,000 − 250,000 − 1,500,000 + 12,000,000 + 5,000,000
+        long cash = jdbc.sql("""
+                        select coalesce(sum(l.debit_amount) - sum(l.credit_amount), 0)
+                          from journal_line l
+                          join journal_entry e on e.id = l.entry_id
+                          join account a on a.id = l.account_id
+                         where e.company_id = ? and e.status = 'POSTED' and a.code = '103'
+                        """)
+                .param(companyId).query(Long.class).single();
+        assertThat(cash).isEqualTo(45_250_000);
+    }
+
     private long noteReceivable(String partnerCode) {
         return jdbc.sql("""
                         select coalesce(sum(l.debit_amount) - sum(l.credit_amount), 0)

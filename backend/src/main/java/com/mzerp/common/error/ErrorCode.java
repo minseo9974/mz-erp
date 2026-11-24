@@ -34,6 +34,7 @@ public enum ErrorCode {
     MISSION_LOCKED(HttpStatus.CONFLICT, "앞의 미션을 먼저 끝내세요"),
     MISSION_NOT_FINISHED(HttpStatus.CONFLICT, "아직 끝내지 않은 미션입니다"),
     MISSION_DRAFTS_LEFT(HttpStatus.CONFLICT, "남아 있는 임시 전표를 먼저 정리하세요"),
+    CHAPTER_NOT_STARTED(HttpStatus.CONFLICT, "아직 시작하지 않은 장입니다"),
     VERSION_CONFLICT(HttpStatus.CONFLICT, "다른 사용자가 먼저 수정했습니다. 새로고침 후 다시 시도하세요");
 
     private final HttpStatus status;

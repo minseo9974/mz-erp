@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router'
 
 import { ApiError } from '../../api/client'
@@ -12,9 +13,10 @@ import {
   reviewPath,
   useEnroll,
   useMyEnrollments,
+  useRestartChapter,
   useStartMission,
 } from './hooks'
-import type { Enrollment, MissionSummary } from './hooks'
+import type { Chapter, Enrollment, MissionSummary } from './hooks'
 
 /**
  * 내 책상 (docs/design/training-site.md §5): 실습의 첫 화면.
@@ -96,17 +98,30 @@ function Desk({ enrollment }: { enrollment: Enrollment }) {
   const me = useMe()
   const navigate = useNavigate()
   const start = useStartMission(enrollment.id)
+  const restart = useRestartChapter(enrollment.id)
+  const [restartTarget, setRestartTarget] = useState<{ index: number; chapter: Chapter } | null>(null)
   const missions = allMissions(enrollment)
   const next = nextMission(enrollment)
   const finished = missions.filter(isFinished).length
   const percent = missions.length === 0 ? 0 : Math.round((finished / missions.length) * 100)
   const startError = start.error instanceof ApiError ? (start.error.detail ?? start.error.title) : start.error?.message
+  const restartError = restart.error instanceof ApiError ? (restart.error.detail ?? restart.error.title) : restart.error?.message
 
   /** 지금 할 업무를 연다. 이미 풀고 있으면 그 화면으로 바로, 처음이면 시작(장부 잔액 저장)한 뒤에 간다 */
   function open(mission: MissionSummary) {
     const path = missionPath(enrollment.companyId, mission.date)
     if (activeAttemptId(mission) !== null) navigate(path)
     else start.mutate(mission.key, { onSuccess: () => navigate(path) })
+  }
+
+  function openRestart(index: number, chapter: Chapter) {
+    restart.reset()
+    setRestartTarget({ index, chapter })
+  }
+
+  function confirmRestart() {
+    if (!restartTarget) return
+    restart.mutate(restartTarget.chapter.key, { onSuccess: () => setRestartTarget(null) })
   }
 
   return (
@@ -180,14 +195,26 @@ function Desk({ enrollment }: { enrollment: Enrollment }) {
         </div>
         {enrollment.chapters.map((chapter, chapterIndex) => (
           <div key={chapter.key} className="chapter">
-            <h3 className="chapter-title">
-              <span>
+            <div className="chapter-head">
+              <h3 className="chapter-title">
                 {chapterIndex + 1}장 · {chapter.title}
-              </span>
-              <span className="muted">
-                {chapter.missions.filter(isFinished).length} / {chapter.missions.length}
-              </span>
-            </h3>
+              </h3>
+              <div className="chapter-meta">
+                <span className="muted">
+                  {chapter.missions.filter(isFinished).length} / {chapter.missions.length}
+                </span>
+                {chapter.canRestart && (
+                  <button
+                    type="button"
+                    className="link chapter-restart"
+                    onClick={() => openRestart(chapterIndex + 1, chapter)}
+                    disabled={restart.isPending}
+                  >
+                    이 장부터 다시
+                  </button>
+                )}
+              </div>
+            </div>
             <ol className="mission-list">
               {chapter.missions.map((m, i) => (
                 <li key={m.key}>
@@ -204,7 +231,83 @@ function Desk({ enrollment }: { enrollment: Enrollment }) {
           </div>
         ))}
       </section>
+      {restartTarget && (
+        <RestartConfirmModal
+          index={restartTarget.index}
+          chapter={restartTarget.chapter}
+          pending={restart.isPending}
+          error={restartError}
+          onCancel={() => {
+            if (!restart.isPending) setRestartTarget(null)
+          }}
+          onConfirm={confirmRestart}
+        />
+      )}
     </>
+  )
+}
+
+/**
+ * 장 다시 시작 확인 창 (브라우저 confirm 대신 앱 안의 대화 상자).
+ * 새 실습 회사가 만들어지고 이전 회차의 기록은 다시 보기에 남는다는 점을 안내한다 (ADR-0019 §1).
+ */
+function RestartConfirmModal({
+  index,
+  chapter,
+  pending,
+  error,
+  onCancel,
+  onConfirm,
+}: {
+  index: number
+  chapter: Chapter
+  pending: boolean
+  error?: string
+  onCancel: () => void
+  onConfirm: () => void
+}) {
+  const cancelRef = useRef<HTMLButtonElement>(null)
+
+  useEffect(() => {
+    cancelRef.current?.focus()
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && !pending) onCancel()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onCancel, pending])
+
+  return (
+    <div className="modal-backdrop" onMouseDown={onCancel}>
+      <div
+        className="modal card confirm-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="restart-modal-title"
+        onMouseDown={(e) => e.stopPropagation()}
+      >
+        <h2 id="restart-modal-title">
+          {index}장 · {chapter.title}부터 다시 시작할까요?
+        </h2>
+        <p>실습 회사가 새로 만들어지고, 지금까지의 기록은 다시 보기에 남아요.</p>
+        <p className="muted">
+          앞 장까지의 거래는 정답대로 정리된 상태로 시작하고, 이 장의 업무를 처음부터 다시 풀 수 있어요.
+        </p>
+        {error && (
+          <div className="alert" role="alert">
+            {error}
+          </div>
+        )}
+        <div className="modal-actions">
+          <button type="button" ref={cancelRef} onClick={onCancel} disabled={pending}>
+            취소
+          </button>
+          <button type="button" className="primary" onClick={onConfirm} disabled={pending}>
+            {pending ? '새 실습 회사를 준비하는 중…' : '이 장부터 다시'}
+          </button>
+        </div>
+      </div>
+    </div>
   )
 }
 

@@ -23,6 +23,8 @@ export interface MissionSummary {
 export interface Chapter {
   key: string
   title: string
+  /** 그 장의 첫 미션을 시작한 적이 있어 "이 장부터 다시"가 가능한가 */
+  canRestart: boolean
   missions: MissionSummary[]
 }
 
@@ -168,6 +170,23 @@ export function useStartMission(enrollmentId: number) {
     mutationFn: (missionKey: string) =>
       api<Attempt>(`${base}/enrollments/${enrollmentId}/missions/${missionKey}/start`, { method: 'POST' }),
     onSuccess: () => client.invalidateQueries({ queryKey: learningKeys.enrollments }),
+  })
+}
+
+/** 이 장부터 다시: 체크포인트로 새 실습 회사를 만들고 이전 회차는 ABANDONED */
+export function useRestartChapter(enrollmentId: number) {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: (chapterKey: string) =>
+      api<Enrollment>(`${base}/enrollments/${enrollmentId}/restart?chapter=${encodeURIComponent(chapterKey)}`, {
+        method: 'POST',
+      }),
+    onSuccess: () =>
+      Promise.all([
+        client.invalidateQueries({ queryKey: learningKeys.enrollments }),
+        client.invalidateQueries({ queryKey: learningKeys.reviews }),
+        client.invalidateQueries({ queryKey: queryKeys.me }),
+      ]),
   })
 }
 

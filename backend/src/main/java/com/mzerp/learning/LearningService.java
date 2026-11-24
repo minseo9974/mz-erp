@@ -51,6 +51,7 @@ public class LearningService {
     };
 
     private final EnrollmentRepository enrollments;
+    private final SandboxRunRepository runs;
     private final MissionAttemptRepository attempts;
     private final AttemptSubmissionRepository submissions;
     private final CourseCatalog catalog;
@@ -60,11 +61,12 @@ public class LearningService {
     private final BalanceMapper balances;
     private final AccountRepository accounts;
 
-    public LearningService(EnrollmentRepository enrollments, MissionAttemptRepository attempts,
-                           AttemptSubmissionRepository submissions, CourseCatalog catalog, SandboxFactory sandboxes,
-                           ScenarioReplayer replayer, JournalService journal, BalanceMapper balances,
-                           AccountRepository accounts) {
+    public LearningService(EnrollmentRepository enrollments, SandboxRunRepository runs,
+                           MissionAttemptRepository attempts, AttemptSubmissionRepository submissions,
+                           CourseCatalog catalog, SandboxFactory sandboxes, ScenarioReplayer replayer,
+                           JournalService journal, BalanceMapper balances, AccountRepository accounts) {
         this.enrollments = enrollments;
+        this.runs = runs;
         this.attempts = attempts;
         this.submissions = submissions;
         this.catalog = catalog;
@@ -86,7 +88,10 @@ public class LearningService {
                               Long practiceAttemptId) {
     }
 
-    public record ChapterView(String key, String title, List<MissionView> missions) {
+    /**
+     * @param canRestart 그 장의 첫 미션을 시작한 적이 있어 "이 장부터 다시"가 가능한가 (ADR-0019 §1)
+     */
+    public record ChapterView(String key, String title, boolean canRestart, List<MissionView> missions) {
     }
 
     public record EnrollmentView(Long id, Long companyId, String courseKey, String courseTitle, List<ChapterView> chapters) {
@@ -127,13 +132,15 @@ public class LearningService {
 
     // ------------------------------------------------------------------ 과정
 
-    /** 과정을 시작한다: 실습 회사를 만들고 수강을 기록한다. 이미 시작했으면 그 수강을 돌려준다. */
+    /** 과정을 시작한다: 수강과 첫 회차(실습 회사)를 만든다. 이미 시작했으면 그 수강을 돌려준다. */
     @Transactional
     public EnrollmentView enroll(Long userId, String courseKey) {
         Course course = catalog.get(courseKey);
         Enrollment enrollment = enrollments.findByUserIdAndCourseKey(userId, courseKey).orElseGet(() -> {
+            Enrollment saved = enrollments.save(new Enrollment(userId, course.key(), course.version()));
             Long companyId = sandboxes.create(userId, course.scenario());
-            return enrollments.save(new Enrollment(userId, companyId, course.key(), course.version()));
+            runs.save(new SandboxRun(saved.getId(), companyId, null, course.version()));
+            return saved;
         });
         return view(enrollment, course);
     }
@@ -152,6 +159,40 @@ public class LearningService {
         return view(enrollment, catalog.get(enrollment.getCourseKey()));
     }
 
+    /**
+     * 이 장부터 다시 시작한다 (ADR-0019 §1).
+     * 그 장의 첫 미션을 시작한 적이 있는 장까지만 허용한다(건너뛰기 금지).
+     * 진행 중이던 시도와 현재 회차는 ABANDONED로 남기고, 그 장보다 앞 장 미션의 정답 거래를 날짜순으로 재생한 새 회사를 만든다.
+     */
+    @Transactional
+    public EnrollmentView restart(Long userId, Long enrollmentId, String chapterKey) {
+        Enrollment enrollment = load(userId, enrollmentId);
+        Course course = catalog.get(enrollment.getCourseKey());
+        Course.Chapter target = chapter(course, chapterKey);
+        if (target.missions().isEmpty()
+                || !attempts.existsByEnrollmentIdAndMissionKeyAndPracticeFalse(enrollmentId, target.missions().getFirst().key())) {
+            throw new ApiException(ErrorCode.CHAPTER_NOT_STARTED, "'" + target.title() + "' 장은 아직 시작하지 않았어요");
+        }
+
+        // 진행 중이던 시도는 ABANDONED로 끝낸다 (옛 회사의 임시 전표는 지우지 않고 그대로 둔다)
+        attempts.findByEnrollmentIdAndStatus(enrollmentId, MissionAttempt.Status.IN_PROGRESS)
+                .ifPresent(MissionAttempt::abandon);
+
+        SandboxRun current = activeRun(enrollmentId);
+        current.abandon();
+        // 수강당 ACTIVE 회차 하나(ux_sandbox_run_one_active)를 지키기 위해 새 회차 삽입 전에 먼저 반영한다
+        runs.flush();
+
+        List<Integer> checkpointTransactions = course.chapters().stream()
+                .takeWhile(c -> !c.key().equals(target.key()))
+                .flatMap(c -> c.missions().stream())
+                .map(m -> m.answer().no())
+                .toList();
+        Long newCompanyId = sandboxes.createCheckpoint(userId, course.scenario(), checkpointTransactions);
+        runs.save(new SandboxRun(enrollmentId, newCompanyId, target.key(), course.version()));
+        return view(enrollment, course);
+    }
+
     // ------------------------------------------------------------------ 미션
 
     /**
@@ -166,27 +207,31 @@ public class LearningService {
     public AttemptView start(Long userId, Long enrollmentId, String missionKey) {
         Enrollment enrollment = load(userId, enrollmentId);
         Course course = catalog.get(enrollment.getCourseKey());
-        Course.Mission mission = mission(enrollment, missionKey);
+        Course.Mission mission = mission(course, missionKey);
+        SandboxRun run = activeRun(enrollmentId);
 
-        var existing = attempts.findByEnrollmentIdAndMissionKeyAndPracticeFalse(enrollmentId, mission.key());
+        if (isBeforeStartChapter(course, run, mission.chapterKey())) {
+            throw new ApiException(ErrorCode.MISSION_ALREADY_FINISHED, "'" + mission.title() + "' 미션은 이미 끝냈어요");
+        }
+        var existing = attempts.findByRunIdAndMissionKeyAndPracticeFalse(run.getId(), mission.key());
         if (existing.isPresent()) {
             existing.get().requireInProgress(); // 끝난 미션은 다시 시작하지 않는다 — 다시 풀기는 retry (연습)
             return view(existing.get(), mission);
         }
-        requireNothingInProgress(enrollment);
-        Set<String> done = attempts.findByEnrollmentId(enrollmentId).stream()
-                .filter(a -> !a.isPractice())
+        requireNothingInProgress(enrollment, course);
+        Set<String> done = attempts.findByRunId(run.getId()).stream()
+                .filter(a -> !a.isPractice() && a.isCompleted())
                 .map(MissionAttempt::getMissionKey)
                 .collect(Collectors.toSet());
         course.missions().stream()
                 .takeWhile(m -> !m.key().equals(mission.key()))
-                .filter(m -> !done.contains(m.key()))
+                .filter(m -> !isBeforeStartChapter(course, run, m.chapterKey()) && !done.contains(m.key()))
                 .findFirst()
                 .ifPresent(previous -> {
                     throw new ApiException(ErrorCode.MISSION_LOCKED, "'" + previous.title() + "' 미션을 먼저 끝내세요");
                 });
-        requireNoDrafts(enrollment, course);
-        return view(attempts.save(newAttempt(enrollment, mission, false)), mission);
+        requireNoDrafts(run, course);
+        return view(attempts.save(newAttempt(enrollment, run, mission, false)), mission);
     }
 
     /**
@@ -200,18 +245,19 @@ public class LearningService {
     public AttemptView retry(Long userId, Long enrollmentId, String missionKey) {
         Enrollment enrollment = load(userId, enrollmentId);
         Course course = catalog.get(enrollment.getCourseKey());
-        Course.Mission mission = mission(enrollment, missionKey);
-        finishedOriginal(enrollment, mission);
+        Course.Mission mission = mission(course, missionKey);
+        SandboxRun run = activeRun(enrollmentId);
+        finishedOriginal(enrollment, run, course, mission);
 
-        var practicing = attempts.findByEnrollmentIdAndMissionKeyOrderById(enrollmentId, mission.key()).stream()
+        var practicing = attempts.findByRunIdAndMissionKeyOrderById(run.getId(), mission.key()).stream()
                 .filter(a -> a.isPractice() && a.isInProgress())
                 .findFirst();
         if (practicing.isPresent()) {
             return view(practicing.get(), mission);
         }
-        requireNothingInProgress(enrollment);
-        requireNoDrafts(enrollment, course);
-        return view(attempts.save(newAttempt(enrollment, mission, true)), mission);
+        requireNothingInProgress(enrollment, course);
+        requireNoDrafts(run, course);
+        return view(attempts.save(newAttempt(enrollment, run, mission, true)), mission);
     }
 
     /**
@@ -222,10 +268,11 @@ public class LearningService {
     public ReviewView review(Long userId, Long enrollmentId, String missionKey) {
         Enrollment enrollment = load(userId, enrollmentId);
         Course course = catalog.get(enrollment.getCourseKey());
-        Course.Mission mission = mission(enrollment, missionKey);
-        MissionAttempt original = finishedOriginal(enrollment, mission);
+        Course.Mission mission = mission(course, missionKey);
+        SandboxRun run = activeRun(enrollmentId);
+        MissionAttempt original = finishedOriginal(enrollment, run, course, mission);
 
-        Map<String, String> accountNames = accounts.findByCompanyIdOrderByCode(enrollment.getCompanyId()).stream()
+        Map<String, String> accountNames = accounts.findByCompanyIdOrderByCode(run.getCompanyId()).stream()
                 .collect(Collectors.toMap(a -> a.getCode(), a -> a.getName()));
         Map<String, String> partnerNames = course.scenario().partners().stream()
                 .collect(Collectors.toMap(Scenario.PartnerSeed::code, Scenario.PartnerSeed::name));
@@ -247,7 +294,7 @@ public class LearningService {
                 original.getStatus().name(), original.getFinishedAt(), mission.evidence(), answer,
                 mission.explanation(), mission.hints(),
                 Math.min(original.getHintsUsed(), mission.hints().size()), original.getSubmissions(), rejections,
-                (int) practices.stream().filter(a -> !a.isInProgress()).count(),
+                (int) practices.stream().filter(MissionAttempt::isCompleted).count(),
                 practices.stream().filter(MissionAttempt::isInProgress).map(MissionAttempt::getId).findFirst().orElse(null));
     }
 
@@ -329,15 +376,15 @@ public class LearningService {
     // ------------------------------------------------------------------ 내부
 
     /** 한 번에 하나만 — 본 시도든 연습이든, 두 미션의 장부 변화가 섞이면 어느 것인지 가를 수 없다 */
-    private void requireNothingInProgress(Enrollment enrollment) {
+    private void requireNothingInProgress(Enrollment enrollment, Course course) {
         attempts.findByEnrollmentIdAndStatus(enrollment.getId(), MissionAttempt.Status.IN_PROGRESS).ifPresent(other -> {
             throw new ApiException(ErrorCode.MISSION_IN_PROGRESS,
-                    "'" + mission(enrollment, other.getMissionKey()).title() + "' 미션이 진행 중입니다");
+                    "'" + mission(course, other.getMissionKey()).title() + "' 미션이 진행 중입니다");
         });
     }
 
-    private void requireNoDrafts(Enrollment enrollment, Course course) {
-        List<JournalService.EntryView> leftover = drafts(enrollment.getCompanyId(), course);
+    private void requireNoDrafts(SandboxRun run, Course course) {
+        List<JournalService.EntryView> leftover = drafts(run.getCompanyId(), course);
         if (!leftover.isEmpty()) {
             throw new ApiException(ErrorCode.MISSION_DRAFTS_LEFT, "임시 전표 " + leftover.size() + "장("
                     + leftover.stream().map(d -> d.entryDate() + " " + d.entryNo()).collect(Collectors.joining(", "))
@@ -345,17 +392,49 @@ public class LearningService {
         }
     }
 
-    private MissionAttempt newAttempt(Enrollment enrollment, Course.Mission mission, boolean practice) {
-        String baseline = JSON.writeValueAsString(Balances.encode(postedBalances(enrollment.getCompanyId())));
-        return new MissionAttempt(enrollment.getId(), enrollment.getCompanyId(), mission.key(), baseline, practice);
+    private MissionAttempt newAttempt(Enrollment enrollment, SandboxRun run, Course.Mission mission, boolean practice) {
+        String baseline = JSON.writeValueAsString(Balances.encode(postedBalances(run.getCompanyId())));
+        return new MissionAttempt(enrollment.getId(), run.getId(), run.getCompanyId(), mission.key(), baseline, practice);
     }
 
-    /** 끝낸 본 시도. 아직 끝내지 않았으면 409 — 다시 보기에는 정답이 들어 있고, 다시 풀기는 끝낸 뒤의 연습이다 */
-    private MissionAttempt finishedOriginal(Enrollment enrollment, Course.Mission mission) {
-        return attempts.findByEnrollmentIdAndMissionKeyAndPracticeFalse(enrollment.getId(), mission.key())
-                .filter(a -> !a.isInProgress())
-                .orElseThrow(() -> new ApiException(ErrorCode.MISSION_NOT_FINISHED,
-                        "'" + mission.title() + "' 미션을 끝낸 뒤에 볼 수 있어요"));
+    /** 끝낸 본 시도. 시작 장보다 앞 장은 이전 회차에서 마지막으로 끝낸 본 시도를, 그 밖에는 현재 회차의 본 시도를 찾는다. */
+    private MissionAttempt finishedOriginal(Enrollment enrollment, SandboxRun run, Course course, Course.Mission mission) {
+        var found = isBeforeStartChapter(course, run, mission.chapterKey())
+                ? attempts.findByEnrollmentIdAndMissionKeyAndPracticeFalseOrderByIdDesc(enrollment.getId(), mission.key())
+                        .stream().filter(MissionAttempt::isCompleted).findFirst()
+                : attempts.findByRunIdAndMissionKeyAndPracticeFalse(run.getId(), mission.key())
+                        .filter(MissionAttempt::isCompleted);
+        return found.orElseThrow(() -> new ApiException(ErrorCode.MISSION_NOT_FINISHED,
+                "'" + mission.title() + "' 미션을 끝낸 뒤에 볼 수 있어요"));
+    }
+
+    private SandboxRun activeRun(Long enrollmentId) {
+        return runs.findByEnrollmentIdAndStatus(enrollmentId, SandboxRun.Status.ACTIVE)
+                .orElseThrow(() -> new IllegalStateException("수강 " + enrollmentId + "에 진행 중인 회차가 없습니다"));
+    }
+
+    private static Course.Chapter chapter(Course course, String chapterKey) {
+        return course.chapters().stream().filter(c -> c.key().equals(chapterKey)).findFirst()
+                .orElseThrow(() -> ApiException.notFound("장 " + chapterKey));
+    }
+
+    /** 회차의 시작 장보다 앞의 장인가. startChapter가 null이면 과정 처음부터 시작이므로 앞 장이 없다. */
+    private static boolean isBeforeStartChapter(Course course, SandboxRun run, String chapterKey) {
+        if (run.getStartChapter() == null) {
+            return false;
+        }
+        int startIndex = chapterIndex(course, run.getStartChapter());
+        int targetIndex = chapterIndex(course, chapterKey);
+        return startIndex >= 0 && targetIndex >= 0 && targetIndex < startIndex;
+    }
+
+    private static int chapterIndex(Course course, String chapterKey) {
+        for (int i = 0; i < course.chapters().size(); i++) {
+            if (course.chapters().get(i).key().equals(chapterKey)) {
+                return i;
+            }
+        }
+        return -1;
     }
 
     /** 정답 분개와 대안 분개 중 하나라도 맞으면 통과. 전부 틀리면 정답 분개 기준의 반려 사유를 돌려준다. */
@@ -406,14 +485,13 @@ public class LearningService {
         return attempt;
     }
 
-    private Course.Mission mission(Enrollment enrollment, String missionKey) {
-        Course course = catalog.get(enrollment.getCourseKey());
+    private static Course.Mission mission(Course course, String missionKey) {
         return course.missions().stream().filter(m -> m.key().equals(missionKey)).findFirst()
                 .orElseThrow(() -> ApiException.notFound("미션 " + missionKey));
     }
 
     private Course.Mission mission(MissionAttempt attempt) {
-        return mission(enrollments.findById(attempt.getEnrollmentId()).orElseThrow(), attempt.getMissionKey());
+        return mission(course(attempt), attempt.getMissionKey());
     }
 
     private Course course(MissionAttempt attempt) {
@@ -421,22 +499,42 @@ public class LearningService {
     }
 
     private EnrollmentView view(Enrollment enrollment, Course course) {
-        List<MissionAttempt> all = attempts.findByEnrollmentId(enrollment.getId());
-        Map<String, MissionAttempt> byMission = all.stream().filter(a -> !a.isPractice())
+        SandboxRun run = activeRun(enrollment.getId());
+        List<MissionAttempt> all = attempts.findByEnrollmentIdOrderById(enrollment.getId());
+        // 현재 회차의 본 시도
+        Map<String, MissionAttempt> inActiveRun = all.stream()
+                .filter(a -> a.getRunId().equals(run.getId()) && !a.isPractice())
                 .collect(Collectors.toMap(MissionAttempt::getMissionKey, Function.identity()));
-        Map<String, Long> practicing = all.stream().filter(a -> a.isPractice() && a.isInProgress())
+        // 시작 장보다 앞 장의 마지막 완료 본 시도 (id 오름차순이므로 나중 것이 덮어쓴다)
+        Map<String, MissionAttempt> lastCompleted = all.stream()
+                .filter(a -> !a.isPractice() && a.isCompleted())
+                .collect(Collectors.toMap(MissionAttempt::getMissionKey, Function.identity(), (older, newer) -> newer));
+        // 현재 진행 중인 연습 시도 (수강 단위 하나뿐, 현재 회차의 것)
+        Map<String, Long> practicing = all.stream()
+                .filter(a -> a.getRunId().equals(run.getId()) && a.isPractice() && a.isInProgress())
                 .collect(Collectors.toMap(MissionAttempt::getMissionKey, MissionAttempt::getId));
+        // 어느 회차에서든 본 시도를 시작한 적이 있는 미션
+        Set<String> everStarted = all.stream()
+                .filter(a -> !a.isPractice())
+                .map(MissionAttempt::getMissionKey)
+                .collect(Collectors.toSet());
+
         List<ChapterView> chapters = course.chapters().stream()
-                .map(c -> new ChapterView(c.key(), c.title(), c.missions().stream()
-                        .map(m -> {
-                            MissionAttempt attempt = byMission.get(m.key());
-                            return new MissionView(m.key(), m.title(), m.brief(), m.date(),
-                                    attempt == null ? "NOT_STARTED" : attempt.getStatus().name(),
-                                    attempt == null ? null : attempt.getId(), practicing.get(m.key()));
-                        })
-                        .toList()))
+                .map(c -> {
+                    boolean beforeStart = isBeforeStartChapter(course, run, c.key());
+                    boolean canRestart = !c.missions().isEmpty() && everStarted.contains(c.missions().getFirst().key());
+                    List<MissionView> missionViews = c.missions().stream()
+                            .map(m -> {
+                                MissionAttempt attempt = beforeStart ? lastCompleted.get(m.key()) : inActiveRun.get(m.key());
+                                return new MissionView(m.key(), m.title(), m.brief(), m.date(),
+                                        attempt == null ? "NOT_STARTED" : attempt.getStatus().name(),
+                                        attempt == null ? null : attempt.getId(), practicing.get(m.key()));
+                            })
+                            .toList();
+                    return new ChapterView(c.key(), c.title(), canRestart, missionViews);
+                })
                 .toList();
-        return new EnrollmentView(enrollment.getId(), enrollment.getCompanyId(), course.key(), course.title(), chapters);
+        return new EnrollmentView(enrollment.getId(), run.getCompanyId(), course.key(), course.title(), chapters);
     }
 
     private static AttemptView view(MissionAttempt attempt, Course.Mission mission) {

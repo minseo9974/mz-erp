@@ -16,8 +16,9 @@ import com.mzerp.common.error.ErrorCode;
 
 /**
  * 미션 시도. 시작할 때의 장부 잔액(baseline)을 품고 있다가, 제출할 때 지금 잔액과의 차이로 채점된다 (ADR-0013).
- * 끝나는 길은 둘: 채점 통과(PASSED), 정답 보고 넘어가기(REVEALED).
+ * 끝나는 길은 셋: 채점 통과(PASSED), 정답 보고 넘어가기(REVEALED), 장 다시 시작으로 중단(ABANDONED).
  * <p>
+ * 시도는 회차(SandboxRun)에 속한다 (ADR-0019). 본 시도는 (회차, 미션)당 하나이고,
  * 끝낸 미션을 다시 푸는 것은 연습 시도({@code practice})로 따로 남는다. 연습은 채점만 하고 장부에는 반영하지 않는다.
  */
 @Entity
@@ -25,7 +26,7 @@ import com.mzerp.common.error.ErrorCode;
 public class MissionAttempt {
 
     public enum Status {
-        IN_PROGRESS, PASSED, REVEALED
+        IN_PROGRESS, PASSED, REVEALED, ABANDONED
     }
 
     @Id
@@ -34,6 +35,9 @@ public class MissionAttempt {
 
     @Column(name = "enrollment_id", nullable = false, updatable = false)
     private Long enrollmentId;
+
+    @Column(name = "run_id", nullable = false, updatable = false)
+    private Long runId;
 
     @Column(name = "company_id", nullable = false, updatable = false)
     private Long companyId;
@@ -68,8 +72,9 @@ public class MissionAttempt {
     protected MissionAttempt() {
     }
 
-    MissionAttempt(Long enrollmentId, Long companyId, String missionKey, String baseline, boolean practice) {
+    MissionAttempt(Long enrollmentId, Long runId, Long companyId, String missionKey, String baseline, boolean practice) {
         this.enrollmentId = enrollmentId;
+        this.runId = runId;
         this.companyId = companyId;
         this.missionKey = missionKey;
         this.baseline = baseline;
@@ -78,6 +83,11 @@ public class MissionAttempt {
 
     boolean isInProgress() {
         return status == Status.IN_PROGRESS;
+    }
+
+    /** 정상적으로 끝낸 시도인가 (통과 또는 정답 보고 넘어가기). ABANDONED는 끝낸 것으로 치지 않는다. */
+    boolean isCompleted() {
+        return status == Status.PASSED || status == Status.REVEALED;
     }
 
     void requireInProgress() {
@@ -105,8 +115,13 @@ public class MissionAttempt {
         this.finishedAt = Instant.now();
     }
 
+    void abandon() {
+        finish(Status.ABANDONED);
+    }
+
     public Long getId() { return id; }
     public Long getEnrollmentId() { return enrollmentId; }
+    public Long getRunId() { return runId; }
     public Long getCompanyId() { return companyId; }
     public String getMissionKey() { return missionKey; }
     public Status getStatus() { return status; }

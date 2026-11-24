@@ -274,7 +274,7 @@ POST /api/v1/companies/1/closing/2026/auto-entries
 | POST | `/enrollments/{id}/missions/{key}/retry` | 끝낸 미션 다시 풀기(연습) → 연습 시도 (`practice: true`). 채점은 같지만 통과해도 전기하지 않고 연습 전표를 지운다. 409: `MISSION_NOT_FINISHED` · `MISSION_IN_PROGRESS` · `MISSION_DRAFTS_LEFT` |
 | GET | `/attempts/{id}` | 미션 시도: 상황, 거래일, 증빙(`evidence: [{ type, title, body }]`), 연 힌트, 제출 횟수, 연습 여부 |
 | POST | `/attempts/{id}/submit` | 결재 요청 → `{ passed, findings: [{ type, message }], attempt }`. 통과하면 팀장이 임시 전표를 전기. (예정) 선택형·값 찾기 미션은 본문으로 답을 보낸다 `{ "answer": ... }` ([ADR-0017](../adr/0017-mission-kinds.md)) |
-| POST | `/enrollments/{id}/restart?chapter=` | (예정) 그 장부터 다시 — 체크포인트로 새 회차를 만들고 이전 회차는 ABANDONED ([ADR-0019](../adr/0019-sandbox-runs-and-purge.md)) |
+| POST | `/enrollments/{id}/restart?chapter=` | 그 장부터 다시 — 체크포인트로 새 회차를 만들고 이전 회차는 ABANDONED. 시작한 적 없는 장은 409 `CHAPTER_NOT_STARTED`, 남의 수강은 404 ([ADR-0019](../adr/0019-sandbox-runs-and-purge.md)) |
 | POST | `/attempts/{id}/hint` | 다음 힌트 열기 |
 | POST | `/attempts/{id}/reveal` | 정답 보고 넘어가기 — 쓰던 임시 전표를 지우고 정답 전표를 전기. 연습 시도에서는 '그만두기': 임시 전표만 지운다 |
 

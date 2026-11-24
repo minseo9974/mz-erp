@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
@@ -48,6 +49,14 @@ public class LearningController {
     public LearningService.EnrollmentView enrollment(@AuthenticationPrincipal AppUserPrincipal user,
                                                      @PathVariable Long enrollmentId) {
         return service.get(user.userId(), enrollmentId);
+    }
+
+    /** 이 장부터 다시: 체크포인트로 새 회차(새 실습 회사)를 만들고 이전 회차는 ABANDONED */
+    @PostMapping("/enrollments/{enrollmentId}/restart")
+    public LearningService.EnrollmentView restart(@AuthenticationPrincipal AppUserPrincipal user,
+                                                  @PathVariable Long enrollmentId,
+                                                  @RequestParam("chapter") String chapterKey) {
+        return service.restart(user.userId(), enrollmentId, chapterKey);
     }
 
     @PostMapping("/enrollments/{enrollmentId}/missions/{missionKey}/start")
