@@ -34,8 +34,8 @@
 | 기초정보 | 거래처 등록 | 거래처 CRUD | `/partners` | 1 |
 | 기초정보 | 계정과목 등록 | 계정 속성 조회·수정 | `/accounts` | 1 |
 | 기초정보 | 전기분 재무상태표 | 기초잔액 입력 → OPENING 전표 | `/fiscal-years/{y}/opening-balance` | 2 |
-| 전표입력 | **일반전표 입력** | 일자별 전표 입력·수정·삭제 | `/journal-entries` | 2 |
-| 전표입력 | 전표 승인(전기) | DRAFT 목록 → 선택 전기, 역분개 | `/journal-entries/post`, `/reverse` | 2 |
+| 전표입력 | **일반전표 입력** | 일자별 전표 입력·수정·삭제, 전기된 전표의 역분개 요청(작성자, 예정 — [ADR-0018](../adr/0018-reversal-request.md)) | `/journal-entries`, `/reversal-request` | 2 |
+| 전표입력 | 전표 승인(전기) | DRAFT 목록(역분개 요청 포함, 원전표 링크) → 선택 전기, 즉시 역분개 | `/journal-entries/post`, `/reverse` | 2 |
 | 전표입력 | **매입매출전표 입력** | 부가세 유형별 입력, 분개 미리보기 | `/sales-purchase-entries` | 4 |
 | 장부조회 | 거래처원장 | 거래처별 잔액·내역 | `/ledgers/partner*` | 3 |
 | 장부조회 | 계정별원장 | 계정별 일자 내역과 잔액 | `/ledgers/account` | 3 |

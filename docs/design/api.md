@@ -71,7 +71,8 @@ REST + JSON. 이 문서는 0단계 설계용 초안이고, 1단계부터는 spri
 | DELETE | `/journal-entries/{id}` | DRAFT 전표 삭제 |
 | POST | `/journal-entries/{id}/post` | 전기 (DRAFT → POSTED). APPROVER 이상 |
 | POST | `/journal-entries/post` | 일괄 전기 `{ "ids": [..] }` — 하나라도 실패하면 전부 롤백 |
-| POST | `/journal-entries/{id}/reverse` | 역분개 전표 생성 `{ "reversalDate": "2026-07-01", "reason": "계정 오류" }` |
+| POST | `/journal-entries/{id}/reverse` | 역분개 전표 생성 후 바로 전기 `{ "reversalDate": "2026-07-01", "reason": "계정 오류" }`. APPROVER 이상 |
+| POST | `/journal-entries/{id}/reversal-request` | 역분개 요청 (예정) — 같은 본문으로 **임시(DRAFT)** REVERSAL 전표를 만든다. WRITER 이상. 라인은 원전표의 반대로 시스템이 만들고 고칠 수 없다(날짜·사유만). 승인자가 `/post`로 전기 ([ADR-0018](../adr/0018-reversal-request.md)) |
 
 **생성 요청** — 시나리오 #6 받을어음 만기
 
@@ -272,11 +273,12 @@ POST /api/v1/companies/1/closing/2026/auto-entries
 | GET | `/enrollments/{id}/missions/{key}/review` | 끝낸 미션 다시 보기: 증빙, 정답 분개(계정·거래처 이름 포함), 해설, 힌트 전부, 본 시도의 결재 요청 횟수와 반려 사유, 연습 횟수. 끝내기 전에는 409 `MISSION_NOT_FINISHED` |
 | POST | `/enrollments/{id}/missions/{key}/retry` | 끝낸 미션 다시 풀기(연습) → 연습 시도 (`practice: true`). 채점은 같지만 통과해도 전기하지 않고 연습 전표를 지운다. 409: `MISSION_NOT_FINISHED` · `MISSION_IN_PROGRESS` · `MISSION_DRAFTS_LEFT` |
 | GET | `/attempts/{id}` | 미션 시도: 상황, 거래일, 증빙(`evidence: [{ type, title, body }]`), 연 힌트, 제출 횟수, 연습 여부 |
-| POST | `/attempts/{id}/submit` | 결재 요청 → `{ passed, findings: [{ type, message }], attempt }`. 통과하면 팀장이 임시 전표를 전기 |
+| POST | `/attempts/{id}/submit` | 결재 요청 → `{ passed, findings: [{ type, message }], attempt }`. 통과하면 팀장이 임시 전표를 전기. (예정) 선택형·값 찾기 미션은 본문으로 답을 보낸다 `{ "answer": ... }` ([ADR-0017](../adr/0017-mission-kinds.md)) |
+| POST | `/enrollments/{id}/restart?chapter=` | (예정) 그 장부터 다시 — 체크포인트로 새 회차를 만들고 이전 회차는 ABANDONED ([ADR-0019](../adr/0019-sandbox-runs-and-purge.md)) |
 | POST | `/attempts/{id}/hint` | 다음 힌트 열기 |
 | POST | `/attempts/{id}/reveal` | 정답 보고 넘어가기 — 쓰던 임시 전표를 지우고 정답 전표를 전기. 연습 시도에서는 '그만두기': 임시 전표만 지운다 |
 
-반려 사유 유형: `NO_ENTRY` · `SIDE_SWAPPED` · `WRONG_PARTNER` · `WRONG_ACCOUNT` · `WRONG_AMOUNT` · `WRONG_DATE` · `UNEXPECTED_CHANGE` ([ADR-0013](../adr/0013-state-based-grading.md))
+반려 사유 유형: `NO_ENTRY` · `SIDE_SWAPPED` · `WRONG_PARTNER` · `WRONG_ACCOUNT` · `WRONG_AMOUNT` · `WRONG_DATE` · `UNEXPECTED_CHANGE` ([ADR-0013](../adr/0013-state-based-grading.md)). (예정) 제출이 미션의 오답 예시와 같으면 그 미션 전용 사유를 먼저 돌려준다 ([ADR-0017](../adr/0017-mission-kinds.md))
 
 ## 인증 (회사 경로 밖)
 
