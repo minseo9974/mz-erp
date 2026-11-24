@@ -159,7 +159,7 @@ class ScenarioGoldenTest extends IntegrationTest {
                 .param(ids.toArray(Long[]::new))
                 .query(String.class)
                 .list();
-        assertThat(dates).containsExactly("2026-01-10", "2026-01-15", "2026-02-25", "2026-03-10");
+        assertThat(dates).containsExactly("2026-01-12", "2026-01-15", "2026-02-25", "2026-03-10");
         assertThat(noteReceivable("00101")).isZero();
         // 기초 30,000,000 − 250,000 − 1,500,000 + 12,000,000 + 5,000,000
         long cash = jdbc.sql("""

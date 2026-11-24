@@ -496,7 +496,7 @@ def main() -> int:
 
     # ---------------- 부가세 신고서 요약
     md.append("## 6. 부가가치세 신고서 요약\n")
-    md.append("예정신고는 생략하고 과세기간 단위로 집계합니다. 금액 단위: 원.\n")
+    md.append("예정고지 대상 법인이나 2기 예정고지(1,895,000)는 4단계에서 추가하며, 지금은 과세기간 단위로 집계합니다. 금액 단위: 원.\n")
     vat_rows = []
     for term, months in ((1, range(1, 7)), (2, range(7, 13))):
         docs = [e for e in entries if e.kind == "SALES_PURCHASE" and e.date.month in months]
