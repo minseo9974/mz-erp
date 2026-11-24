@@ -2,7 +2,6 @@ package com.mzerp.learning;
 
 import java.time.Instant;
 import java.time.LocalDate;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -18,6 +17,7 @@ import com.mzerp.learning.course.Course;
 import com.mzerp.learning.course.CourseCatalog;
 import com.mzerp.learning.grading.Balances;
 import com.mzerp.learning.grading.Grader;
+import com.mzerp.learning.grading.MissionGrader;
 import com.mzerp.learning.scenario.Scenario;
 import com.mzerp.learning.scenario.ScenarioReplayer;
 import com.mzerp.ledger.BalanceMapper;
@@ -27,6 +27,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
@@ -60,11 +61,13 @@ public class LearningService {
     private final JournalService journal;
     private final BalanceMapper balances;
     private final AccountRepository accounts;
+    private final Map<Course.MissionKind, MissionGrader> graders;
 
     public LearningService(EnrollmentRepository enrollments, SandboxRunRepository runs,
                            MissionAttemptRepository attempts, AttemptSubmissionRepository submissions,
                            CourseCatalog catalog, SandboxFactory sandboxes, ScenarioReplayer replayer,
-                           JournalService journal, BalanceMapper balances, AccountRepository accounts) {
+                           JournalService journal, BalanceMapper balances, AccountRepository accounts,
+                           List<MissionGrader> graders) {
         this.enrollments = enrollments;
         this.runs = runs;
         this.attempts = attempts;
@@ -75,16 +78,18 @@ public class LearningService {
         this.journal = journal;
         this.balances = balances;
         this.accounts = accounts;
+        this.graders = graders.stream().collect(Collectors.toMap(MissionGrader::kind, Function.identity()));
     }
 
     // ------------------------------------------------------------------ 응답 모델
 
     /**
+     * @param kind              미션 종류 (ENTRY · QUIZ · LOOKUP · CORRECTION …)
      * @param status            NOT_STARTED · IN_PROGRESS · PASSED · REVEALED (본 시도의 상태)
      * @param attemptId         시작한 적이 있으면 본 시도의 id
      * @param practiceAttemptId 지금 다시 풀고 있으면 그 연습 시도의 id
      */
-    public record MissionView(String key, String title, String brief, LocalDate date, String status, Long attemptId,
+    public record MissionView(String key, String kind, String title, String brief, LocalDate date, String status, Long attemptId,
                               Long practiceAttemptId) {
     }
 
@@ -98,11 +103,12 @@ public class LearningService {
     }
 
     /**
+     * @param kind     미션 종류 (ENTRY · QUIZ · LOOKUP · CORRECTION …)
      * @param practice 끝낸 미션을 다시 푸는 연습인가
      * @param evidence 증빙 (통장 거래내역, 영수증, 어음)
      * @param hints    지금까지 연 힌트
      */
-    public record AttemptView(Long id, String missionKey, String title, String brief, LocalDate date, String status,
+    public record AttemptView(Long id, String missionKey, String kind, String title, String brief, LocalDate date, String status,
                               boolean practice, List<Course.Evidence> evidence, List<String> hints, int hintsRemaining,
                               int submissions) {
     }
@@ -114,13 +120,14 @@ public class LearningService {
     /**
      * 끝낸 미션 다시 보기.
      *
+     * @param kind        미션 종류 (ENTRY · QUIZ · LOOKUP · CORRECTION …)
      * @param status      PASSED · REVEALED
      * @param submissions 본 시도에서 결재를 요청한 횟수
      * @param rejections  본 시도에서 반려될 때마다 받은 사유 (요청 순서대로)
      * @param practices   다시 풀기를 끝낸 횟수
      * @param practiceAttemptId 지금 다시 풀고 있으면 그 연습 시도의 id
      */
-    public record ReviewView(String key, String title, String chapterTitle, String brief, LocalDate date, String status,
+    public record ReviewView(String key, String kind, String title, String chapterTitle, String brief, LocalDate date, String status,
                              Instant finishedAt, List<Course.Evidence> evidence, List<AnswerLine> answer,
                              String explanation, List<String> hints,
                              int hintsUsed, int submissions, List<List<String>> rejections, int practices,
@@ -186,6 +193,7 @@ public class LearningService {
         List<Integer> checkpointTransactions = course.chapters().stream()
                 .takeWhile(c -> !c.key().equals(target.key()))
                 .flatMap(c -> c.missions().stream())
+                .filter(m -> m.answer() != null)
                 .map(m -> m.answer().no())
                 .toList();
         Long newCompanyId = sandboxes.createCheckpoint(userId, course.scenario(), checkpointTransactions);
@@ -290,7 +298,7 @@ public class LearningService {
         String chapterTitle = course.chapters().stream().filter(c -> c.key().equals(mission.chapterKey()))
                 .map(Course.Chapter::title).findFirst().orElse("");
 
-        return new ReviewView(mission.key(), mission.title(), chapterTitle, mission.brief(), mission.date(),
+        return new ReviewView(mission.key(), mission.kind().name(), mission.title(), chapterTitle, mission.brief(), mission.date(),
                 original.getStatus().name(), original.getFinishedAt(), mission.evidence(), answer,
                 mission.explanation(), mission.hints(),
                 Math.min(original.getHintsUsed(), mission.hints().size()), original.getSubmissions(), rejections,
@@ -304,13 +312,23 @@ public class LearningService {
         return view(attempt, mission(attempt));
     }
 
-    /** 결재 요청 = 채점. 통과하면 팀장이 임시 전표를 전기한다. 연습이면 전기하지 않고 그 전표를 지운다. */
+    /**
+     * 결재 요청 = 채점 (ADR-0017). 미션 종류에 맞는 {@link MissionGrader} 전략으로 판정한다.
+     * 통과하면 팀장이 임시 전표를 전기하고, 연습이면 전기하지 않고 그 전표를 지운다.
+     *
+     * @param submittedAnswer quiz·lookup의 제출 값 (전표 미션은 null)
+     */
     @Transactional
-    public SubmitResult submit(Long userId, Long attemptId) {
+    public SubmitResult submit(Long userId, Long attemptId, JsonNode submittedAnswer) {
         MissionAttempt attempt = loadAttempt(userId, attemptId);
         Course.Mission mission = mission(attempt);
         Long companyId = attempt.getCompanyId();
         attempt.countSubmission();
+
+        MissionGrader grader = graders.get(mission.kind());
+        if (grader == null) {
+            throw new IllegalStateException("미션 종류 " + mission.kind() + "의 채점기가 없습니다");
+        }
 
         List<JournalService.EntryView> drafts = drafts(companyId, course(attempt));
         // 전기된 잔액 + 임시 전표 = "결재가 나면 이렇게 된다"
@@ -319,17 +337,17 @@ public class LearningService {
             draft.lines().forEach(l -> Balances.add(pending, l.accountCode(), l.partnerCode(), l.side(), l.amount()));
         }
         Map<Balances.Key, Long> actual = Balances.minus(pending, Balances.decode(JSON.readValue(attempt.getBaseline(), BASELINE_TYPE)));
+        Map<String, Grader.AccountInfo> accountInfo = accounts.findByCompanyIdOrderByCode(companyId).stream()
+                .map(a -> new Grader.AccountInfo(a.getCode(), a.getName(), a.getCategory().name(), a.getSubgroup()))
+                .collect(Collectors.toMap(Grader.AccountInfo::code, Function.identity()));
 
-        List<Grader.Finding> findings = grade(mission, actual, companyId);
-        if (findings.isEmpty()) {
-            // 금액과 계정이 맞아도 전표 일자가 거래일과 다르면 장부의 기간이 틀어진다
-            drafts.stream().filter(d -> !d.entryDate().equals(mission.date())).findFirst().ifPresent(d ->
-                    findings.add(new Grader.Finding(Grader.FindingType.WRONG_DATE,
-                            "전표 일자가 " + d.entryDate() + "로 되어 있어요. 전표 일자는 작성한 날이 아니라 거래가 일어난 날이에요.")));
-        }
+        List<Grader.Finding> findings = grader.grade(
+                new MissionGrader.Context(mission, actual, drafts, accountInfo, submittedAnswer));
 
         boolean passed = findings.isEmpty();
-        submissions.save(new AttemptSubmission(attempt.getId(), companyId, passed, JSON.writeValueAsString(findings)));
+        String answerJson = submittedAnswer == null || submittedAnswer.isNull()
+                ? null : JSON.writeValueAsString(submittedAnswer);
+        submissions.save(new AttemptSubmission(attempt.getId(), companyId, passed, JSON.writeValueAsString(findings), answerJson));
         if (passed) {
             if (attempt.isPractice()) {
                 // 이 거래는 이미 장부에 있다. 또 전기하면 두 번 기록된다
@@ -437,26 +455,6 @@ public class LearningService {
         return -1;
     }
 
-    /** 정답 분개와 대안 분개 중 하나라도 맞으면 통과. 전부 틀리면 정답 분개 기준의 반려 사유를 돌려준다. */
-    private List<Grader.Finding> grade(Course.Mission mission, Map<Balances.Key, Long> actual, Long companyId) {
-        Map<String, Grader.AccountInfo> info = accounts.findByCompanyIdOrderByCode(companyId).stream()
-                .map(a -> new Grader.AccountInfo(a.getCode(), a.getName(), a.getCategory().name(), a.getSubgroup()))
-                .collect(Collectors.toMap(Grader.AccountInfo::code, Function.identity()));
-        for (List<Scenario.Line> alternative : mission.accept()) {
-            if (Grader.grade(expected(alternative), actual, info).isEmpty()) {
-                return new ArrayList<>();
-            }
-        }
-        return new ArrayList<>(Grader.grade(expected(mission.answer().lines()), actual, info));
-    }
-
-    /** 분개 라인 → 그 분개가 장부에 만드는 변화 */
-    private static Map<Balances.Key, Long> expected(List<Scenario.Line> lines) {
-        Map<Balances.Key, Long> net = new TreeMap<>();
-        lines.forEach(l -> Balances.add(net, l.accountCode(), l.partnerCode(), l.side(), l.amount()));
-        return net;
-    }
-
     private Map<Balances.Key, Long> postedBalances(Long companyId) {
         Map<Balances.Key, Long> net = new TreeMap<>();
         for (BalanceMapper.Row row : balances.postedBalances(companyId)) {
@@ -526,7 +524,7 @@ public class LearningService {
                     List<MissionView> missionViews = c.missions().stream()
                             .map(m -> {
                                 MissionAttempt attempt = beforeStart ? lastCompleted.get(m.key()) : inActiveRun.get(m.key());
-                                return new MissionView(m.key(), m.title(), m.brief(), m.date(),
+                                return new MissionView(m.key(), m.kind().name(), m.title(), m.brief(), m.date(),
                                         attempt == null ? "NOT_STARTED" : attempt.getStatus().name(),
                                         attempt == null ? null : attempt.getId(), practicing.get(m.key()));
                             })
@@ -539,7 +537,7 @@ public class LearningService {
 
     private static AttemptView view(MissionAttempt attempt, Course.Mission mission) {
         int shown = Math.min(attempt.getHintsUsed(), mission.hints().size());
-        return new AttemptView(attempt.getId(), mission.key(), mission.title(), mission.brief(), mission.date(),
+        return new AttemptView(attempt.getId(), mission.key(), mission.kind().name(), mission.title(), mission.brief(), mission.date(),
                 attempt.getStatus().name(), attempt.isPractice(), mission.evidence(), mission.hints().subList(0, shown),
                 mission.hints().size() - shown,
                 attempt.getSubmissions());

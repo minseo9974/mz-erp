@@ -25,14 +25,15 @@
 | # | 파일 | 볼 것 |
 | --- | --- | --- |
 | 1 | `learning/grading/Balances.java` | 변화를 어떻게 표현하나: (계정, 거래처) → 차변 − 대변 |
-| 2 | `learning/grading/Grader.java` | 통과 판정과 오답 유형 분류. DB·스프링 없음 |
-| 3 | `GraderTest.java` | 오답 유형마다 한 테스트. **여기부터 읽어도 좋다** |
-| 4 | `ledger/BalanceMapper.java` | 채점의 재료: 전기된 전표 라인의 계정·거래처별 합계 (MyBatis) |
-| 5 | `learning/course/CourseCatalog.java`, `data/course/accounting-basics.toml` | 미션은 시나리오 거래를 가리킬 뿐, 정답을 따로 적지 않는다 |
-| 6 | `learning/SandboxFactory.java` | 실습 회사와 팀장 계정 |
-| 7 | `learning/LearningService.java` | `start` → `submit` → `reveal` |
-| 8 | `LearningApiTest.java` | 반려 세 번 뒤 승인되는 한 바퀴 |
-| 9 | `resources/db/migration/V5__learning.sql` | 실습 층 테이블 3개. ERP 테이블은 그대로 |
+| 2 | `learning/grading/Grader.java`, `Korean.java` | 범용 통과 판정, 오답 유형 분류, 받침 조사 도우미. DB·스프링 없음 |
+| 3 | `learning/grading/MissionGrader.java`, `EntryGrader.java` | 미션 종류별 채점 전략: 오답 예시(`MISTAKE`) 우선 → 범용 진단 |
+| 4 | `GraderTest.java` | 오답 유형과 오답 예시마다 한 테스트. **여기부터 읽어도 좋다** |
+| 5 | `ledger/BalanceMapper.java` | 채점의 재료: 전기된 전표 라인의 계정·거래처별 합계 (MyBatis) |
+| 6 | `learning/course/CourseCatalog.java`, `data/course/accounting-basics.toml` | 미션 종류(`kind`), 오답 예시(`mistakes`), 근거(`basis`·`exam_ref`) |
+| 7 | `learning/SandboxFactory.java` | 실습 회사와 팀장 계정 |
+| 8 | `learning/LearningService.java` | `start` → `submit` → `reveal` |
+| 9 | `LearningApiTest.java` | 반려 세 번 뒤 승인되는 한 바퀴 |
+| 10 | `resources/db/migration/V5__learning.sql`, `V8__attempt_submission_answer.sql` | 실습 층 테이블. ERP 테이블은 그대로 |
 
 ## 3. 변화로 채점한다 — `Balances`, `Grader`
 
@@ -55,18 +56,20 @@
 - 거꾸로 넣었다가 역분개하고 다시 넣어도, 세 전표를 합친 변화는 같다 → 통과 (`correctedByReversalPasses`). 실무에서 올바른 정정 절차이기 때문
 - 장부는 전표 라인에서만 나온다는 불변식 5가 채점의 근거다
 
-**틀렸을 때**는 차이의 모양으로 이유를 가립니다 (`Grader.grade`, 위에서부터 차례로 검사).
+**틀렸을 때**는 먼저 미션에 적어 둔 오답 예시(`mistakes`)와 일치하는지 보고(`EntryGrader`), 없으면 차이의 모양으로 이유를 가립니다 (`Grader.grade`, 위에서부터 차례로 검사).
 
 | 유형 | 판별 | 테스트 |
 | --- | --- | --- |
+| `MISTAKE` | 미션의 `mistakes` 오답 예시와 잔액 변화가 같다 (전용 반려 사유 우선) | `entryGraderPrefersMistakeOverGenericDiagnosis`, `CourseContentTest` |
 | `NO_ENTRY` | 실제 변화가 비어 있다 | `nothingEntered` |
 | `SIDE_SWAPPED` | 실제 변화의 부호를 전부 뒤집으면 기대와 같다 | `sidesSwapped` |
-| `WRONG_PARTNER` | 거래처를 무시하고 계정별로 합치면 같다 | `wrongPartner` |
+| `MISSING_PARTNER` | 계정과 금액은 맞는데 거래처를 비워 두었다 | `partnerMissingAndWrongAreDistinguished` |
+| `WRONG_PARTNER` | 계정과 금액은 맞는데 다른 거래처를 골랐다 | `partnerMissingAndWrongAreDistinguished` |
 | (통과) | 정답이 거래처를 따지지 않는 계정(보통예금)에 거래처를 붙였다 — 틀린 처리가 아니므로 떼고 본다 (`ignoreExtraPartners`) | `extraPartnerOnAccountWithoutPartnerPasses` |
-| `WRONG_ACCOUNT` | 계정별 차이가 딱 두 개: 있어야 할 계정 하나가 없고, 없어야 할 계정 하나가 같은 금액으로 있다 | `wrongAccount` |
-| `WRONG_AMOUNT` | 바뀐 계정의 집합은 같고 금액만 다르다 | `wrongAmount` |
+| `WRONG_ACCOUNT` | 계정별 차이가 딱 두 개: 있어야 할 계정 하나가 없고, 없어야 할 계정 하나가 같은 금액으로 있다 | `wrongAccountUsesProperKoreanParticles` |
+| `WRONG_AMOUNT` | 바뀐 계정의 집합은 같고 금액만 다르다 (차액 표시) | `wrongAmountShowsDifference` |
 | `UNEXPECTED_CHANGE` | 그 밖 | `unexpectedChange` |
-| `WRONG_DATE` | 변화는 맞는데 전표 일자가 거래일이 아니다 (서비스가 붙임) | `LearningApiTest` |
+| `WRONG_DATE` | 변화는 맞는데 전표 일자가 거래일이 아니다 (`EntryGrader`가 붙임) | `LearningApiTest` |
 
 `WRONG_ACCOUNT`의 문장은 두 계정이 얼마나 가까운지에 따라 달라집니다.
 

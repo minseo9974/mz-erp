@@ -1,10 +1,12 @@
 package com.mzerp.learning.grading;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 
 import com.mzerp.journal.Side;
+import com.mzerp.learning.scenario.Scenario;
 
 /**
  * 계정·거래처별 순잔액(차변 − 대변)의 묶음과, 두 묶음의 차이를 구하는 계산.
@@ -43,6 +45,13 @@ public final class Balances {
         long signed = side == Side.DEBIT ? amount : -amount;
         net.merge(new Key(accountCode, partnerCode), signed, Long::sum);
         net.values().removeIf(v -> v == 0);
+    }
+
+    /** 분개 라인 목록이 장부에 만드는 순변화(차변 − 대변). */
+    public static Map<Key, Long> ofLines(List<Scenario.Line> lines) {
+        Map<Key, Long> net = new TreeMap<>();
+        lines.forEach(l -> add(net, l.accountCode(), l.partnerCode(), l.side(), l.amount()));
+        return net;
     }
 
     /** a − b. 변화가 없는 항목은 결과에 없다. */

@@ -121,6 +121,7 @@ class LearningApiTest extends IntegrationTest {
         mvc.perform(get("/api/v1/learning/enrollments/" + enrollmentId).session(learner))
                 .andExpect(jsonPath("$.courseTitle").value("회계팀 첫 1년"))
                 .andExpect(jsonPath("$.chapters[0].missions", hasSize(6)))
+                .andExpect(jsonPath("$.chapters[0].missions[0].kind").value("ENTRY"))
                 .andExpect(jsonPath("$.chapters[0].missions[0].status").value("NOT_STARTED"))
                 .andExpect(jsonPath("$.chapters[0].missions[0].date").value("2026-01-12"));
         mvc.perform(get("/api/v1/learning/enrollments").session(learner))
@@ -204,6 +205,55 @@ class LearningApiTest extends IntegrationTest {
         Long entryId = createDraft(entryBody("2026-01-12", line("DEBIT", "254", null, 250_000), line("CREDIT", "103", null, 250_000)));
 
         mvc.perform(post(entries() + "/" + entryId + "/post").session(learner).with(xsrf())).andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("오답 예시에 걸리면 MISTAKE로 미션 전용 사유를 먼저 돌려주고, 아니면 범용 진단(조사·차액)을 쓴다")
+    void mistakeFeedbackPrecedesGenericDiagnosis() throws Exception {
+        Long attemptId = start("withholding-tax-payment");
+
+        // 원천세 → 세금과공과(817): 1장 미션의 오답 예시
+        Long entryId = createDraft(entryBody("2026-01-12", line("DEBIT", "817", null, 250_000), line("CREDIT", "103", null, 250_000)));
+        attemptAction(attemptId, "submit")
+                .andExpect(jsonPath("$.passed").value(false))
+                .andExpect(jsonPath("$.findings[0].type").value("MISTAKE"))
+                .andExpect(jsonPath("$.findings[0].message").value(org.hamcrest.Matchers.containsString("회사의 비용이 아니에요")));
+
+        // 오답 예시에 없는 비용 계정(819 임차료) → 범용 WRONG_ACCOUNT + 받침에 맞는 조사("부채예요")
+        updateDraft(entryId, 0, entryBody("2026-01-12", line("DEBIT", "819", null, 250_000), line("CREDIT", "103", null, 250_000)));
+        attemptAction(attemptId, "submit")
+                .andExpect(jsonPath("$.passed").value(false))
+                .andExpect(jsonPath("$.findings[0].type").value("WRONG_ACCOUNT"))
+                .andExpect(jsonPath("$.findings[0].message").value("819 임차료는 비용 계정인데, 이 거래에서 바뀌는 것은 부채예요."));
+
+        // 계정은 맞고 금액이 50,000원 부족 → 범용 WRONG_AMOUNT + 차액 표시
+        updateDraft(entryId, 1, entryBody("2026-01-12", line("DEBIT", "254", null, 200_000), line("CREDIT", "103", null, 200_000)));
+        attemptAction(attemptId, "submit")
+                .andExpect(jsonPath("$.passed").value(false))
+                .andExpect(jsonPath("$.findings[0].type").value("WRONG_AMOUNT"))
+                .andExpect(jsonPath("$.findings[0].message").value(org.hamcrest.Matchers.containsString("차액 50,000원")));
+    }
+
+    @Test
+    @DisplayName("제출 API는 선택 본문(answer)을 받아 attempt_submission.submitted_answer에 저장한다 (ADR-0017)")
+    void submitStoresOptionalAnswerBody() throws Exception {
+        Long attemptId = start("withholding-tax-payment");
+
+        // 본문 없이 제출 → submitted_answer는 null
+        attemptAction(attemptId, "submit").andExpect(status().isOk()).andExpect(jsonPath("$.passed").value(false));
+        // 빈 객체 본문 → submitted_answer는 null
+        mvc.perform(post("/api/v1/learning/attempts/" + attemptId + "/submit").session(learner).with(xsrf())
+                        .contentType(MediaType.APPLICATION_JSON).content("{}"))
+                .andExpect(status().isOk());
+        // answer 값이 있으면 JSON 그대로 저장 (quiz·lookup 분석용)
+        mvc.perform(post("/api/v1/learning/attempts/" + attemptId + "/submit").session(learner).with(xsrf())
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"answer\":\"choice-2\"}"))
+                .andExpect(status().isOk());
+
+        java.util.List<String> stored = jdbc.sql(
+                        "select submitted_answer from attempt_submission where attempt_id = ? order by id")
+                .param(attemptId).query((rs, n) -> rs.getString("submitted_answer")).list();
+        assertThat(stored).containsExactly(null, null, "\"choice-2\"");
     }
 
     @Test
@@ -386,7 +436,8 @@ class LearningApiTest extends IntegrationTest {
         Long entryId = createDraft(entryBody("2026-01-12", line("DEBIT", "817", null, 250_000), line("CREDIT", "103", null, 250_000)));
         attemptAction(practiceId, "submit")
                 .andExpect(jsonPath("$.passed").value(false))
-                .andExpect(jsonPath("$.findings[0].type").value("WRONG_ACCOUNT"));
+                .andExpect(jsonPath("$.findings[0].type").value("MISTAKE"))
+                .andExpect(jsonPath("$.findings[0].message").value(org.hamcrest.Matchers.containsString("회사의 비용이 아니에요")));
         updateDraft(entryId, 0, entryBody("2026-01-12", line("DEBIT", "254", null, 250_000), line("CREDIT", "103", null, 250_000)));
         attemptAction(practiceId, "submit")
                 .andExpect(jsonPath("$.passed").value(true))

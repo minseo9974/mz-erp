@@ -14,6 +14,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import tools.jackson.databind.JsonNode;
+
 /**
  * 실습 API (docs/design/training-site.md §8). 회사 경로 밖에 있다 — 실습 회사는 과정을 시작할 때 만들어진다.
  * 로그인한 사용자 자신의 수강·시도만 다룰 수 있다 (남의 것은 404).
@@ -30,6 +32,10 @@ public class LearningController {
     }
 
     public record EnrollRequest(@NotBlank String courseKey) {
+    }
+
+    /** 선택형(quiz)·값 찾기(lookup) 미션 제출 본문 (ADR-0017). 전표 미션은 생략한다. */
+    public record SubmitRequest(JsonNode answer) {
     }
 
     /** 과정 시작. 이미 시작했으면 그 수강을 돌려준다. */
@@ -84,10 +90,12 @@ public class LearningController {
         return service.attempt(user.userId(), attemptId);
     }
 
-    /** 결재 요청: 채점해서 승인(전기)하거나 반려 사유를 돌려준다. */
+    /** 결재 요청: 채점해서 승인(전기)하거나 반려 사유를 돌려준다. 본문(answer)은 선택 (ADR-0017). */
     @PostMapping("/attempts/{attemptId}/submit")
-    public LearningService.SubmitResult submit(@AuthenticationPrincipal AppUserPrincipal user, @PathVariable Long attemptId) {
-        return service.submit(user.userId(), attemptId);
+    public LearningService.SubmitResult submit(@AuthenticationPrincipal AppUserPrincipal user,
+                                               @PathVariable Long attemptId,
+                                               @RequestBody(required = false) SubmitRequest request) {
+        return service.submit(user.userId(), attemptId, request == null ? null : request.answer());
     }
 
     @PostMapping("/attempts/{attemptId}/hint")
